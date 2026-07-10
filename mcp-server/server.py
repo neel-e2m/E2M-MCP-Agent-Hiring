@@ -15,6 +15,7 @@ import os
 import httpx
 from fastmcp import FastMCP
 import structlog
+import sys
 from dotenv import load_dotenv
 
 # ── Configuration ─────────────────────────────────────────────────────────
@@ -33,7 +34,8 @@ structlog.configure(
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.add_log_level,
         structlog.dev.ConsoleRenderer(),
-    ]
+    ],
+    logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
 )
 logger = structlog.get_logger("mcp_server")
 
@@ -276,11 +278,14 @@ async def get_application_status(candidate_id: str, role_id: str) -> dict:
 # ── Entrypoint ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    transport = os.getenv("MCP_TRANSPORT", "stdio")
     logger.info(
         "starting_mcp_server",
-        host=HOST,
-        port=PORT,
         backend=BACKEND_URL,
-        transport="streamable-http",
+        transport=transport,
     )
-    mcp.run(transport="streamable-http", host=HOST, port=PORT)
+    if transport == "sse":
+        port = int(os.getenv("PORT", "8001"))
+        mcp.run(transport="sse", host="0.0.0.0", port=port)
+    else:
+        mcp.run(transport="stdio")

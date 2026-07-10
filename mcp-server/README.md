@@ -57,6 +57,12 @@ The server exposes five primary MCP tools:
 
 ## Running the Server
 
+Quick start:
+
+```bash
+python server.py
+```
+
 To test the server in a standalone inspector mode (useful for debugging):
 
 ```bash

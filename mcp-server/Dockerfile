@@ -7,5 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run via SSE transport on 8001
+# Run via SSE transport on Railway/Render
+ENV MCP_TRANSPORT=sse
 CMD ["python", "server.py"]
