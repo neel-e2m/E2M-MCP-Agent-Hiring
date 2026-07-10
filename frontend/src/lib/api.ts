@@ -34,7 +34,7 @@ api.interceptors.response.use(
     // Globally invalidate all cache on any successful mutation (POST, PUT, DELETE)
     // This ensures data stays perfectly fresh after creating/updating items
     if (response.config.method?.toLowerCase() !== 'get') {
-      await api.storage.clear();
+      try { await (api.storage as unknown as { clear: () => Promise<void> }).clear(); } catch { /* ignore */ }
     }
     return response;
   },
