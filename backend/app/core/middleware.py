@@ -59,26 +59,46 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 # ── Rate Limiting ─────────────────────────────────────────────────────────
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Simple sliding-window rate limiter backed by Redis."""
+    """Simple sliding-window rate limiter backed by Redis.
+    
+    Gracefully skips rate limiting when Redis is unavailable (e.g. on Railway
+    without a Redis add-on) by permanently disabling itself after the first
+    failed connection attempt.
+    """
 
     def __init__(self, app, redis_url: str = "", limit: int = 60):  # noqa: ANN001
         super().__init__(app)
         self.limit = limit
         self.redis_url = redis_url
         self._redis: aioredis.Redis | None = None
+        self._redis_unavailable = not bool(redis_url) or redis_url == "redis://localhost:6379/0"
 
     async def _get_redis(self) -> aioredis.Redis | None:
+        if self._redis_unavailable:
+            return None
         if self._redis is None and self.redis_url:
             try:
-                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)
+                self._redis = aioredis.from_url(
+                    self.redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=2,
+                )
+                # Verify connection works
+                await self._redis.ping()
             except Exception:
                 logger.warning("rate_limit_redis_unavailable")
+                self._redis_unavailable = True
+                self._redis = None
                 return None
         return self._redis
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Skip rate limiting for health checks
         if request.url.path in ("/health", "/docs", "/redoc", "/openapi.json"):
+            return await call_next(request)
+
+        # Fast path: skip entirely when Redis is not available
+        if self._redis_unavailable:
             return await call_next(request)
 
         r = await self._get_redis()
@@ -99,6 +119,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 )
         except Exception:
             logger.warning("rate_limit_check_failed", client_ip=client_ip)
+            self._redis_unavailable = True
 
         return await call_next(request)
 

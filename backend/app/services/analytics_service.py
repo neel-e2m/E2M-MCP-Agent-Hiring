@@ -18,17 +18,32 @@ class AnalyticsService:
         self.supabase = supabase
 
     async def get_overview(self) -> dict:
-        """Fetch high-level KPI counts."""
-        # Note: In production, these should be cached or use a DB function
-        # to avoid multiple round-trips.
-        
-        candidates = self.supabase.table("candidates").select("id", count="exact").execute()
-        roles = self.supabase.table("roles").select("id", count="exact").eq("is_active", True).execute()
-        apps = self.supabase.table("applications").select("id", count="exact").execute()
-        reviews = self.supabase.table("applications").select("id", count="exact").eq("status", "submitted").execute()
+        """Fetch high-level KPI counts — all queries run concurrently."""
+        import asyncio
 
-        # Avg screening score
-        scores_res = self.supabase.table("screening_sessions").select("total_score").eq("status", "completed").execute()
+        def _q_candidates():
+            return self.supabase.table("candidates").select("id", count="exact").execute()
+
+        def _q_roles():
+            return self.supabase.table("roles").select("id", count="exact").eq("is_active", True).execute()
+
+        def _q_apps():
+            return self.supabase.table("applications").select("id", count="exact").execute()
+
+        def _q_reviews():
+            return self.supabase.table("applications").select("id", count="exact").eq("status", "submitted").execute()
+
+        def _q_scores():
+            return self.supabase.table("screening_sessions").select("total_score").eq("status", "completed").execute()
+
+        candidates, roles, apps, reviews, scores_res = await asyncio.gather(
+            asyncio.to_thread(_q_candidates),
+            asyncio.to_thread(_q_roles),
+            asyncio.to_thread(_q_apps),
+            asyncio.to_thread(_q_reviews),
+            asyncio.to_thread(_q_scores),
+        )
+
         scores = [s["total_score"] for s in (scores_res.data or []) if s["total_score"] is not None]
         avg_score = sum(scores) / len(scores) if scores else 0.0
 
