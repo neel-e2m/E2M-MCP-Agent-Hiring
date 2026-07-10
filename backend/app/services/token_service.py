@@ -64,17 +64,36 @@ class TokenService:
             "expires_at": expires_at.isoformat(),
         }
 
-    async def validate_token(self, token: str) -> dict:
-        """Validate a raw token string. Returns token record if valid."""
+    async def validate_token(self, token: str) -> dict | None:
+        """Validate a raw token string (or hash). Returns token record if valid."""
         token_hash = SecurityService.hash_token(token)
-        result = (
-            self.supabase.table("access_tokens")
-            .select("*")
-            .eq("token", token_hash)
-            .single()
-            .execute()
-        )
-        return result.data if result.data else None
+        try:
+            # First, try to match the hash (if user passed raw token)
+            result = (
+                self.supabase.table("access_tokens")
+                .select("*")
+                .eq("token", token_hash)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                return result.data[0]
+                
+            # Fallback: try to match the string directly (if user copied the hash from the table)
+            result = (
+                self.supabase.table("access_tokens")
+                .select("*")
+                .eq("token", token)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                return result.data[0]
+                
+            return None
+        except Exception as e:
+            logger.error("token_validation_error", error=str(e))
+            return None
 
     async def revoke_token(self, token_id: str) -> None:
         """Revoke an invite token by ID."""

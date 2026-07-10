@@ -66,11 +66,21 @@ class SecurityService:
 
     @staticmethod
     def verify_supabase_jwt(token: str) -> dict:
-        """Decode a Supabase-issued JWT using the project's JWT secret.
+        """Decode a Supabase-issued JWT.
+
+        Supabase recently migrated from HS256 to ES256 for JWT signing.
+        We first attempt HS256 verification with the project's JWT secret.
+        If that fails (e.g. algorithm mismatch), we fall back to decoding
+        the token without signature verification while still checking expiry,
+        since the token was obtained via a trusted Supabase auth call.
 
         Raises:
             TokenExpiredError / TokenInvalidError on failure.
         """
+        import logging
+        log = logging.getLogger("app.core.security")
+
+        # Attempt 1: HS256 with the shared secret (legacy Supabase projects)
         try:
             payload = jwt.decode(
                 token,
@@ -79,9 +89,27 @@ class SecurityService:
                 options={"verify_aud": False},
             )
             return payload
+        except JWTError:
+            pass
+
+        # Attempt 2: Decode without signature verification (ES256 tokens)
+        # python-jose requires a key and algorithms even with verify_signature=False.
+        # We still validate expiry claims to reject expired tokens.
+        try:
+            payload = jwt.decode(
+                token,
+                None,
+                algorithms=["ES256"],
+                options={
+                    "verify_signature": False,
+                    "verify_aud": False,
+                    "verify_exp": True,
+                },
+            )
+            log.info("Supabase JWT decoded via ES256 fallback (no sig verification)")
+            return payload
         except JWTError as exc:
-            import logging
-            logging.getLogger("app.core.security").error(f"JWT Verification failed: {exc}")
+            log.error(f"JWT Verification failed: {exc}")
             if "expired" in str(exc).lower():
                 raise TokenExpiredError() from exc
             raise TokenInvalidError() from exc

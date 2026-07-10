@@ -34,7 +34,7 @@ class ScreeningService:
             .select("id, status")
             .eq("candidate_id", candidate_id)
             .eq("role_id", role_id)
-            .eq("status", ScreeningStatus.IN_PROGRESS)
+            .eq("status", ScreeningStatus.IN_PROGRESS.value)
             .execute()
         )
         if existing.data:
@@ -57,7 +57,7 @@ class ScreeningService:
         result = self.supabase.table("screening_sessions").insert({
             "candidate_id": candidate_id,
             "role_id": role_id,
-            "status": ScreeningStatus.IN_PROGRESS,
+            "status": ScreeningStatus.IN_PROGRESS.value,
             "total_questions": total_questions,
             "answered_questions": 0,
             "total_score": 0,
@@ -168,7 +168,7 @@ class ScreeningService:
         total_score = round(sum(scores) / len(scores), 2) if scores else 0
 
         result = self.supabase.table("screening_sessions").update({
-            "status": ScreeningStatus.COMPLETED,
+            "status": ScreeningStatus.COMPLETED.value,
             "total_score": total_score,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", session_id).execute()

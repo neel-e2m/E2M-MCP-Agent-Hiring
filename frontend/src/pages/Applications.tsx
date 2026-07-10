@@ -1,45 +1,215 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '../components/ui/Card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
+import { Textarea } from '../components/ui/Textarea';
+import { Pagination } from '../components/ui/Pagination';
+import { useToast } from '../components/ui/Toast';
+import { Filter, Sparkles, User, Briefcase, Calendar, Mail, Phone, ExternalLink } from 'lucide-react';
 import api from '../lib/api';
 
+/* ─── shared select styling ─── */
+const selectStyle: React.CSSProperties = {
+  padding: '9px 14px',
+  borderRadius: 'var(--radius-md)',
+  border: '1px solid var(--glass-border)',
+  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  color: 'var(--text-primary)',
+  outline: 'none',
+  fontFamily: 'inherit',
+  fontSize: '0.875rem',
+  cursor: 'pointer',
+  minWidth: '160px',
+};
+const optionStyle: React.CSSProperties = { color: '#000' };
+
+/* ─── constants ─── */
+const PER_PAGE = 20;
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
+function getStatusBadge(status: string) {
+  switch(status) {
+    case 'submitted': return <Badge variant="info">Submitted</Badge>;
+    case 'under_review': return <Badge variant="warning">Under Review</Badge>;
+    case 'shortlisted': return <Badge variant="success">Shortlisted</Badge>;
+    case 'approved': return <Badge variant="success">Approved</Badge>;
+    case 'rejected': return <Badge variant="danger">Rejected</Badge>;
+    default: return <Badge>{status}</Badge>;
+  }
+}
+
+function scoreColor(score: number): { bg: string; text: string } {
+  if (score >= 7) return { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399' };
+  if (score >= 5) return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' };
+  return { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171' };
+}
+
+/* ─── main component ─── */
 export function Applications() {
+  const { toast } = useToast();
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  /* ── filters & pagination ── */
+  const [roles, setRoles] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const response = await api.get('/applications');
-        setApplications(response.data.applications || []);
-      } catch (error) {
-        console.error('Failed to load applications', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchApps();
-  }, []);
+  /* ── modal state ── */
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
+  const [appDetail, setAppDetail] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [reviewForm, setReviewForm] = useState({ status: '', notes: '' });
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [aiRecLoading, setAiRecLoading] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
 
-  const getStatusBadge = (status: string) => {
-    switch(status) {
-      case 'submitted': return <Badge variant="info">Submitted</Badge>;
-      case 'under_review': return <Badge variant="warning">Under Review</Badge>;
-      case 'shortlisted': return <Badge variant="success">Shortlisted</Badge>;
-      case 'approved': return <Badge variant="success">Approved</Badge>;
-      case 'rejected': return <Badge variant="danger">Rejected</Badge>;
-      default: return <Badge>{status}</Badge>;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+
+  /* ── fetch lists ── */
+  const fetchRoles = useCallback(async () => {
+    try {
+      const res = await api.get('/roles/');
+      setRoles(res.data || []);
+    } catch {
+      toast('Failed to load roles', 'error');
+    }
+  }, [toast]);
+
+  const fetchApplications = useCallback(async (p: number, st: string, r: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('page', String(p));
+      params.set('per_page', String(PER_PAGE));
+      if (st) params.set('status', st);
+      if (r) params.set('role_id', r);
+      
+      const res = await api.get(`/applications/?${params.toString()}`);
+      setApplications(res.data.applications || []);
+      setTotal(res.data.total || 0);
+    } catch {
+      toast('Failed to load applications', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { fetchRoles(); }, [fetchRoles]);
+  useEffect(() => { fetchApplications(page, statusFilter, roleFilter); }, [page, statusFilter, roleFilter, fetchApplications]);
+
+  const handleFilterChange = (type: 'status' | 'role', val: string) => {
+    if (type === 'status') setStatusFilter(val);
+    if (type === 'role') setRoleFilter(val);
+    setPage(1);
+  };
+
+  /* ── detail modal ── */
+  const openDetail = async (appId: string) => {
+    setSelectedAppId(appId);
+    setAppDetail(null);
+    setAiRecommendation(null);
+    setDetailLoading(true);
+    try {
+      const res = await api.get(`/applications/${appId}`);
+      setAppDetail(res.data);
+      setReviewForm({ 
+        status: res.data.status, 
+        notes: res.data.reviewer_notes || '' 
+      });
+    } catch {
+      toast('Failed to load application details', 'error');
+      setSelectedAppId(null);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
+  const closeDetail = () => {
+    setSelectedAppId(null);
+    setAppDetail(null);
+  };
+
+  /* ── actions ── */
+  const submitReview = async () => {
+    if (!selectedAppId) return;
+    setReviewLoading(true);
+    try {
+      const payload: any = { status: reviewForm.status };
+      if (reviewForm.notes.trim()) payload.notes = reviewForm.notes;
+      const res = await api.post(`/applications/${selectedAppId}/review`, payload);
+      setAppDetail(res.data);
+      toast('Review submitted successfully', 'success');
+      fetchApplications(page, statusFilter, roleFilter);
+    } catch {
+      toast('Failed to submit review', 'error');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const generateRec = async () => {
+    if (!selectedAppId) return;
+    setAiRecLoading(true);
+    try {
+      const res = await api.post(`/applications/${selectedAppId}/recommendation`);
+      setAiRecommendation(res.data.recommendation);
+      toast('AI recommendation generated', 'success');
+    } catch {
+      toast('Failed to generate AI recommendation', 'error');
+    } finally {
+      setAiRecLoading(false);
+    }
+  };
+
+  /* ═════════════════════════════════ RENDER ═════════════════════════════════ */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.4s ease-out' }}>
-      <div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 700, letterSpacing: '-0.04em', marginBottom: '4px' }}>Applications</h1>
-        <p style={{ color: 'var(--text-secondary)' }}>Review candidate applications and AI recommendations.</p>
+      
+      {/* ── Header & Filters ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', fontWeight: 700, letterSpacing: '-0.04em', marginBottom: '4px' }}>Applications</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Review candidate applications and AI recommendations.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Filter size={16} style={{ color: 'var(--text-muted)' }} />
+            <select
+              value={statusFilter}
+              onChange={e => handleFilterChange('status', e.target.value)}
+              style={selectStyle}
+            >
+              {STATUS_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value} style={optionStyle}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <select
+            value={roleFilter}
+            onChange={e => handleFilterChange('role', e.target.value)}
+            style={selectStyle}
+          >
+            <option value="" style={optionStyle}>All Roles</option>
+            {roles.map(r => (
+              <option key={r.id} value={r.id} style={optionStyle}>{r.title}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
+      {/* ── Table ── */}
       <Card>
         <CardContent style={{ padding: 0 }}>
           <Table>
@@ -56,55 +226,203 @@ export function Applications() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <TableCell colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : applications.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <TableCell colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
                     No applications found.
                   </TableCell>
                 </TableRow>
               ) : (
-                applications.map(app => (
-                  <TableRow key={app.id} style={{ cursor: 'pointer' }}>
-                    <TableCell>
-                      <div style={{ fontWeight: 500 }}>{app.candidates?.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{app.candidates?.email}</div>
-                    </TableCell>
-                    <TableCell style={{ color: 'var(--text-secondary)' }}>{app.roles?.title}</TableCell>
-                    <TableCell>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center',
-                        width: '32px', 
-                        height: '32px', 
-                        borderRadius: '8px',
-                        background: app.overall_score >= 7 ? 'rgba(16, 185, 129, 0.15)' : 
-                                    app.overall_score >= 5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                        color: app.overall_score >= 7 ? '#34d399' : 
-                               app.overall_score >= 5 ? '#fbbf24' : '#f87171',
-                        fontWeight: 600
-                      }}>
-                        {app.overall_score || '-'}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(app.status)}</TableCell>
-                    <TableCell style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(app.submitted_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell style={{ textAlign: 'right' }}>
-                      <span style={{ color: 'var(--accent-primary)', fontSize: '0.875rem', fontWeight: 500 }}>Review</span>
-                    </TableCell>
-                  </TableRow>
-                ))
+                applications.map(app => {
+                  const sc = app.overall_score != null ? scoreColor(app.overall_score) : null;
+                  return (
+                    <TableRow key={app.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(app.id)}>
+                      <TableCell>
+                        <div style={{ fontWeight: 500 }}>{app.candidates?.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{app.candidates?.email}</div>
+                      </TableCell>
+                      <TableCell style={{ color: 'var(--text-secondary)' }}>{app.roles?.title}</TableCell>
+                      <TableCell>
+                        {sc ? (
+                          <div style={{ 
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px', borderRadius: '8px',
+                            background: sc.bg, color: sc.text, fontWeight: 600
+                          }}>
+                            {app.overall_score}
+                          </div>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(app.status)}</TableCell>
+                      <TableCell style={{ color: 'var(--text-secondary)' }}>
+                        {new Date(app.submitted_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell style={{ textAlign: 'right' }}>
+                        <span style={{ 
+                          color: 'var(--accent-primary)', fontSize: '0.875rem', fontWeight: 500,
+                          display: 'inline-flex', alignItems: 'center', gap: '4px'
+                        }}>
+                          Review <ExternalLink size={13} />
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      )}
+
+      {/* ═══════════════════════ DETAIL MODAL ═══════════════════════ */}
+      <Modal isOpen={!!selectedAppId} onClose={closeDetail} title="Application Review" size="xl">
+        {detailLoading ? (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading application details...</div>
+        ) : appDetail && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            
+            {/* Header Info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <User size={24} style={{ color: 'var(--accent-primary)' }} />
+                  <div>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{appDetail.candidates?.name}</h2>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{appDetail.roles?.title}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={14} /> {appDetail.candidates?.email}</span>
+                  {appDetail.candidates?.phone && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={14} /> {appDetail.candidates?.phone}</span>
+                  )}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Applied {new Date(appDetail.submitted_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {getStatusBadge(appDetail.status)}
+                {appDetail.overall_score != null && (
+                  <div style={{ marginTop: '12px' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>AI Score</span>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: scoreColor(appDetail.overall_score).bg,
+                      color: scoreColor(appDetail.overall_score).text,
+                      fontSize: '1.5rem', fontWeight: 700,
+                      width: '48px', height: '48px', borderRadius: '12px',
+                      marginTop: '4px', marginLeft: 'auto'
+                    }}>
+                      {appDetail.overall_score}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--glass-border)' }} />
+
+            {/* Profile Summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
+              <div>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Candidate Summary
+                </h4>
+                <p style={{ color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.925rem', marginBottom: '24px' }}>
+                  {appDetail.candidates?.summary || 'No summary provided.'}
+                </p>
+
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Skills
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {appDetail.candidates?.skills?.length ? (
+                    appDetail.candidates.skills.map((skill: string, i: number) => (
+                      <Badge key={i} variant="info">{skill}</Badge>
+                    ))
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No skills listed.</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Review Panel */}
+              <div style={{
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px'
+              }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <Briefcase size={16} /> Hiring Decision
+                </h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Status</label>
+                  <select
+                    value={reviewForm.status}
+                    onChange={e => setReviewForm({ ...reviewForm, status: e.target.value })}
+                    style={selectStyle}
+                  >
+                    <option value="under_review" style={optionStyle}>Under Review</option>
+                    <option value="shortlisted" style={optionStyle}>Shortlist</option>
+                    <option value="approved" style={optionStyle}>Approve</option>
+                    <option value="rejected" style={optionStyle}>Reject</option>
+                  </select>
+                </div>
+
+                <Textarea
+                  label="Reviewer Notes"
+                  placeholder="Private notes about this candidate..."
+                  value={reviewForm.notes}
+                  onChange={e => setReviewForm({ ...reviewForm, notes: e.target.value })}
+                  style={{ minHeight: '100px' }}
+                />
+
+                <Button isLoading={reviewLoading} onClick={submitReview} style={{ width: '100%' }}>
+                  Save Review
+                </Button>
+              </div>
+            </div>
+
+            {/* AI Recommendation */}
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.05)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '24px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: aiRecommendation ? '16px' : '0' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                  <Sparkles size={18} /> AI Hiring Recommendation
+                </h4>
+                {!aiRecommendation && (
+                  <Button variant="outline" size="sm" onClick={generateRec} isLoading={aiRecLoading}>
+                    Generate Insight
+                  </Button>
+                )}
+              </div>
+              {aiRecommendation && (
+                <p style={{ color: 'var(--text-primary)', fontSize: '0.925rem', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
+                  {aiRecommendation}
+                </p>
+              )}
+            </div>
+
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

@@ -109,7 +109,7 @@ class InternalApiKeyMiddleware(BaseHTTPMiddleware):
     """Reject requests to ``/internal/`` that lack a valid API key header."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path.startswith("/internal/"):
+        if "/internal/" in request.url.path:
             api_key = request.headers.get("X-Internal-Api-Key", "")
             if api_key != settings.MCP_INTERNAL_API_KEY:
                 return JSONResponse(
