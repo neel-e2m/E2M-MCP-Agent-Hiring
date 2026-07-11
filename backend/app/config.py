@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     SECRET_KEY: str = "change-this-in-production"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://e2m-mcp-agent-frontend.vercel.app"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
