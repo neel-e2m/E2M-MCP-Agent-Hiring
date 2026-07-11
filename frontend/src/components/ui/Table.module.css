@@ -2,8 +2,7 @@
   width: 100%;
   overflow: auto;
   border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
-  background: rgba(18, 18, 20, 0.4);
+  background: var(--bg-secondary);
 }
 
 .table {
@@ -13,17 +12,17 @@
 }
 
 .header {
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid var(--glass-border);
+  background: transparent;
+  border-bottom: 1px solid var(--border);
 }
 
 .row {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  transition: background-color 0.2s ease;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.15s ease;
 }
 
 .body .row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface-hover);
 }
 
 .body .row:last-child {
@@ -31,17 +30,17 @@
 }
 
 .head {
-  padding: 16px;
-  font-size: 0.75rem;
+  padding: 13px 18px;
+  font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.055em;
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .cell {
-  padding: 16px;
+  padding: 15px 18px;
   font-size: 0.875rem;
   color: var(--text-primary);
   vertical-align: middle;

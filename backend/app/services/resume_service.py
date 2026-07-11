@@ -5,13 +5,17 @@ Coordinates file upload to Supabase Storage and triggers LLM-based
 parsing to extract structured data from resumes.
 """
 
+import base64
+
 from supabase import Client
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging_config import get_logger
 from app.services.storage_service import StorageService
 
 logger = get_logger(__name__)
+
+MAX_RESUME_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 class ResumeService:
@@ -48,6 +52,39 @@ class ResumeService:
         # e.g., parse_resume_async.delay(file_record["id"])
 
         return file_record
+
+    async def upload_base64(self, candidate_id: str, file_base64: str, filename: str = "resume.pdf") -> dict:
+        """Decode a base64-encoded PDF sent by the candidate's agent and store it.
+
+        The candidate's AI agent submits the real PDF as base64 (optionally a
+        ``data:`` URL). We keep a single resume per candidate so the dashboard
+        always shows the latest one.
+        """
+        payload = (file_base64 or "").strip()
+        if payload.startswith("data:") and "," in payload:
+            payload = payload.split(",", 1)[1]
+
+        try:
+            content = base64.b64decode(payload, validate=False)
+        except Exception as exc:  # noqa: BLE001
+            raise ValidationError(detail="Invalid base64 resume content") from exc
+
+        if not content:
+            raise ValidationError(detail="Resume file is empty")
+        if len(content) > MAX_RESUME_BYTES:
+            raise ValidationError(detail="Resume exceeds the 5 MB limit")
+
+        safe_name = (filename or "resume.pdf").strip() or "resume.pdf"
+        if not safe_name.lower().endswith(".pdf"):
+            safe_name = f"{safe_name}.pdf"
+
+        # Ensure the bucket exists and clear any previous resume records for this candidate
+        await self.storage.ensure_bucket("resumes")
+        self.supabase.table("candidate_files").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("file_type", "resume").execute()
+
+        return await self.upload(candidate_id, content, safe_name, "application/pdf")
 
     async def update_parsed_data(self, file_id: str, parsed_data: dict) -> None:
         """Update the parsed data for a resume file."""

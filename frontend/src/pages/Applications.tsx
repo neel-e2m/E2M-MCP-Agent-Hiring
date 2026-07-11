@@ -15,7 +15,7 @@ const selectStyle: React.CSSProperties = {
   padding: '9px 14px',
   borderRadius: 'var(--radius-md)',
   border: '1px solid var(--glass-border)',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  backgroundColor: 'var(--bg-secondary)',
   color: 'var(--text-primary)',
   outline: 'none',
   fontFamily: 'inherit',
@@ -48,9 +48,9 @@ function getStatusBadge(status: string) {
 }
 
 function scoreColor(score: number): { bg: string; text: string } {
-  if (score >= 7) return { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399' };
-  if (score >= 5) return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' };
-  return { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171' };
+  if (score >= 7) return { bg: 'var(--success-bg)', text: 'var(--success)' };
+  if (score >= 5) return { bg: 'var(--warning-bg)', text: 'var(--warning)' };
+  return { bg: 'var(--danger-bg)', text: 'var(--danger)' };
 }
 
 /* ─── main component ─── */
@@ -74,6 +74,7 @@ export function Applications() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [aiRecLoading, setAiRecLoading] = useState(false);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
+  const [promptAnswer, setPromptAnswer] = useState<any | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -120,14 +121,25 @@ export function Applications() {
     setSelectedAppId(appId);
     setAppDetail(null);
     setAiRecommendation(null);
+    setPromptAnswer(null);
     setDetailLoading(true);
     try {
       const res = await api.get(`/applications/${appId}`);
       setAppDetail(res.data);
-      setReviewForm({ 
-        status: res.data.status, 
-        notes: res.data.reviewer_notes || '' 
+      setReviewForm({
+        status: res.data.status,
+        notes: res.data.reviewer_notes || ''
       });
+      // Surface the candidate's prompt submission for this role from their screening.
+      try {
+        const scr = await api.get(`/candidates/${res.data.candidate_id}/screening`);
+        const session = (scr.data || []).find((s: any) => s.role_id === res.data.role_id);
+        const answers = session?.screening_answers || [];
+        const prompt =
+          answers.find((a: any) => a.evaluation_metadata?.category === 'prompt' && a.answer) ||
+          answers.find((a: any) => a.answer) || null;
+        setPromptAnswer(prompt);
+      } catch { /* screening data is optional */ }
     } catch {
       toast('Failed to load application details', 'error');
       setSelectedAppId(null);
@@ -139,6 +151,7 @@ export function Applications() {
   const closeDetail = () => {
     setSelectedAppId(null);
     setAppDetail(null);
+    setPromptAnswer(null);
   };
 
   /* ── actions ── */
@@ -356,7 +369,7 @@ export function Applications() {
 
               {/* Review Panel */}
               <div style={{
-                background: 'rgba(255,255,255,0.02)',
+                background: 'var(--bg-tertiary)',
                 border: '1px solid var(--glass-border)',
                 borderRadius: 'var(--radius-md)',
                 padding: '20px',
@@ -396,10 +409,71 @@ export function Applications() {
               </div>
             </div>
 
+            {/* Auto-status + Eligibility */}
+            {(appDetail.metadata?.auto_status_reason || (appDetail.metadata?.eligibility?.checks?.length ?? 0) > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {appDetail.metadata?.auto_status_reason && (
+                  <div style={{
+                    fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'var(--bg-tertiary)',
+                    border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', padding: '10px 14px',
+                  }}>
+                    {appDetail.metadata.auto_status_reason}
+                  </div>
+                )}
+                {(appDetail.metadata?.eligibility?.checks?.length ?? 0) > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '10px' }}>Eligibility</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {appDetail.metadata.eligibility.checks.map((c: any, i: number) => (
+                        <Badge key={i} variant={c.passed ? 'success' : 'danger'}>
+                          {String(c.rule).replace(/_/g, ' ')}: {String(c.actual)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Prompt Submission */}
+            {promptAnswer && (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Screening Prompt Submission</h4>
+                  {promptAnswer.evaluation_metadata?.ai_flag && (
+                    <Badge variant="warning">Possibly AI-generated</Badge>
+                  )}
+                  {promptAnswer.score != null && (
+                    <span style={{
+                      marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '3px 10px', borderRadius: '8px', fontWeight: 600, fontSize: '0.8rem',
+                      background: scoreColor(promptAnswer.score).bg, color: scoreColor(promptAnswer.score).text,
+                    }}>
+                      {promptAnswer.score}/10
+                    </span>
+                  )}
+                </div>
+                {promptAnswer.question && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.5 }}>{promptAnswer.question}</p>
+                )}
+                <div style={{
+                  background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)',
+                  padding: '14px', fontSize: '0.875rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6,
+                }}>
+                  {promptAnswer.answer}
+                </div>
+                {promptAnswer.ai_feedback && (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px', fontStyle: 'italic', lineHeight: 1.5 }}>
+                    Evaluation: {promptAnswer.ai_feedback}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* AI Recommendation */}
             <div style={{
-              background: 'rgba(99, 102, 241, 0.05)',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
+              background: 'var(--accent-soft)',
+              border: '1px solid var(--glass-border)',
               borderRadius: 'var(--radius-lg)',
               padding: '24px',
             }}>

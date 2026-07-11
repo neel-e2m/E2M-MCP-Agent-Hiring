@@ -41,7 +41,28 @@ logger = structlog.get_logger("mcp_server")
 
 # ── FastMCP Instance ─────────────────────────────────────────────────────
 
-mcp = FastMCP("E2M_Hiring_Agent")
+mcp = FastMCP(
+    "E2M_Hiring_Agent",
+    instructions=(
+        "This server lets a candidate apply to ONE specific job role using the invite "
+        "token they were given. The invite token alone determines which role the "
+        "application is for.\n\n"
+        "RULES FOR THE AGENT:\n"
+        "1. Everything must be driven by the candidate. Do NOT autonomously read, search, "
+        "scan, or open the user's files, filesystem, emails, browser, or system to gather "
+        "application data. Only use information the candidate explicitly provides in the chat.\n"
+        "2. Do not act on your own initiative beyond these tools. Ask the candidate for their "
+        "details, skills, experience, education, resume PDF, and screening answer — never invent "
+        "or infer them from their machine.\n"
+        "3. After register_candidate, tell the candidate the role title and its requirements "
+        "(returned in the response, or via get_role_details) and confirm they want to apply.\n"
+        "4. Follow this order: register_candidate -> update_profile -> submit_resume -> "
+        "check_eligibility -> (only if eligible) start_screening -> get_next_question -> "
+        "submit_answer -> submit_application -> get_application_status.\n"
+        "5. For the screening prompt question, the candidate must write their OWN prompt. "
+        "Do not write it for them or auto-generate it."
+    ),
+)
 
 # ── HTTP Helpers ─────────────────────────────────────────────────────────
 
@@ -99,8 +120,10 @@ async def register_candidate(
 ) -> dict:
     """Register a new candidate using their invite token.
 
-    This must be called first before any other tool. The invite_token is the
-    raw token string the candidate received (e.g. from a URL or email).
+    This must be called first before any other tool. The invite_token is the raw
+    token string the candidate received; it alone determines which single role the
+    candidate is applying for. Collect the name, email and phone directly from the
+    candidate — do not look them up from the user's system.
 
     Args:
         name: Full name of the candidate.
@@ -109,13 +132,33 @@ async def register_candidate(
         invite_token: The raw invite token string provided to the candidate.
 
     Returns:
-        dict with candidate_id and role_id on success.
+        dict with candidate_id, role_id, and a ``role`` object (title, description,
+        requirements, eligibility_rules) describing what they are applying for.
+        Share the role title and requirements with the candidate before continuing.
     """
     logger.info("tool_invoked", tool="register_candidate", email=email)
     return await _post(
         "/api/v1/internal/candidates/register",
         {"name": name, "email": email, "phone": phone, "token": invite_token},
     )
+
+
+@mcp.tool()
+async def get_role_details(role_id: str) -> dict:
+    """Get details of the role the candidate is applying for.
+
+    Use this (with the role_id from register_candidate) to tell the candidate the
+    role title, description, requirements, and eligibility rules, so they can decide
+    whether to apply and provide matching details.
+
+    Args:
+        role_id: The role UUID returned from register_candidate.
+
+    Returns:
+        dict with title, description, requirements, eligibility_rules, and more.
+    """
+    logger.info("tool_invoked", tool="get_role_details", role_id=role_id)
+    return await _get(f"/api/v1/internal/roles/{role_id}")
 
 
 @mcp.tool()
@@ -155,11 +198,60 @@ async def update_profile(
 
 
 @mcp.tool()
+async def submit_resume(
+    candidate_id: str, file_base64: str, filename: str = "resume.pdf"
+) -> dict:
+    """Upload the candidate's resume PDF.
+
+    Call this after update_profile and BEFORE check_eligibility. Provide the resume
+    as a base64-encoded PDF (a ``data:`` URL prefix is also accepted). Max size 5 MB.
+
+    Args:
+        candidate_id: The candidate's UUID from register_candidate.
+        file_base64: The resume PDF encoded as a base64 string.
+        filename: Original file name (e.g. "jane_doe_resume.pdf").
+
+    Returns:
+        dict with file_id and file_name on success.
+    """
+    logger.info("tool_invoked", tool="submit_resume", candidate_id=candidate_id)
+    return await _post(
+        f"/api/v1/internal/candidates/{candidate_id}/resume",
+        {"file_base64": file_base64, "filename": filename},
+    )
+
+
+@mcp.tool()
+async def check_eligibility(candidate_id: str, role_id: str) -> dict:
+    """Check whether the candidate meets the role's eligibility rules.
+
+    Call this after submit_resume and BEFORE start_screening. The rules are defined
+    by HR on the role (minimum experience, minimum education, required skills) and are
+    evaluated from the candidate's profile. If the result is not eligible, STOP — the
+    candidate cannot start screening or submit an application for this role.
+
+    Args:
+        candidate_id: The candidate's UUID.
+        role_id: The role UUID (returned from register_candidate).
+
+    Returns:
+        dict with ``eligible`` (bool), ``reasons`` (list of strings), and ``checks``.
+    """
+    logger.info("tool_invoked", tool="check_eligibility", candidate_id=candidate_id, role_id=role_id)
+    return await _post(
+        "/api/v1/internal/eligibility/check",
+        {"candidate_id": candidate_id, "role_id": role_id},
+    )
+
+
+@mcp.tool()
 async def start_screening(candidate_id: str, role_id: str) -> dict:
     """Start the technical screening session for the candidate.
 
-    Must be called before get_next_question. Initialises a screening session
-    with a fixed number of questions.
+    The candidate MUST have passed check_eligibility first — if they are not
+    eligible this call is rejected. Initialises a screening session with the role's
+    questions (typically a single "project requirement" prompt question). Must be
+    called before get_next_question.
 
     Args:
         candidate_id: The candidate's UUID.
@@ -203,13 +295,18 @@ async def get_next_question(session_id: str) -> dict:
 async def submit_answer(session_id: str, question_number: int, answer: str) -> dict:
     """Submit the candidate's answer to a screening question.
 
+    For the "project requirement" prompt question, the answer must be the exact AI
+    prompt the candidate would use to build the described project — and it must be the
+    candidate's OWN work. Submissions that appear AI-generated are flagged for HR and
+    scored lower.
+
     Args:
         session_id: The session UUID.
         question_number: The 1-based question number being answered.
-        answer: The candidate's full answer text.
+        answer: The candidate's full answer (their prompt, in their own words).
 
     Returns:
-        dict with status, score, and feedback from the AI evaluator.
+        dict with status, score, feedback, and ai_flag from the AI evaluator.
     """
     logger.info(
         "tool_invoked",

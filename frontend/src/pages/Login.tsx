@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useAuthStore } from '../store/authStore';
 import api from '../lib/api';
+import logo from '../assets/E2M_Logo.png';
 
 export function Login() {
   const [email, setEmail] = useState('admin@e2m.com');
@@ -35,15 +36,19 @@ export function Login() {
   return (
     <AuthLayout>
       <Card>
-        <CardHeader style={{ textAlign: 'center', paddingBottom: '32px' }}>
-          <div style={{ 
-            width: '48px', height: '48px', 
-            background: 'var(--accent-gradient)', 
-            borderRadius: '12px',
-            margin: '0 auto 16px',
-            boxShadow: '0 4px 20px rgba(99, 102, 241, 0.4)'
-          }} />
-          <CardTitle style={{ fontSize: '1.5rem' }}>Welcome to E2M</CardTitle>
+        <CardHeader style={{ textAlign: 'center', paddingBottom: '28px' }}>
+          <img
+            src={logo}
+            alt="E2M"
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '14px',
+              margin: '0 auto 18px',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          />
+          <CardTitle style={{ fontSize: '1.5rem', letterSpacing: '-0.03em' }}>Welcome to E2M</CardTitle>
           <CardDescription>Sign in to the AI Hiring Platform</CardDescription>
         </CardHeader>
         <CardContent>

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import styles from './DashboardLayout.module.css';
 import { useAuthStore } from '../../store/authStore';
+import logo from '../../assets/E2M_Logo.png';
 
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/' },
@@ -30,7 +31,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          <div className={styles.logo}></div>
+          <img src={logo} alt="E2M" className={styles.logo} />
           <h2>E2M Agent</h2>
         </div>
         

@@ -2,9 +2,9 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,23 +18,21 @@
 }
 
 .modal {
-  background: var(--glass-bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   width: 100%;
-  max-height: 85vh;
+  max-height: 86vh;
   overflow-y: auto;
   position: relative;
-  animation: modalIn 0.25s ease-out;
+  animation: modalIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes modalIn {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(8px);
+    transform: scale(0.97) translateY(10px);
   }
   to {
     opacity: 1;
@@ -42,17 +40,21 @@
   }
 }
 
-.sm { max-width: 400px; }
+.sm { max-width: 420px; }
 .md { max-width: 560px; }
 .lg { max-width: 720px; }
-.xl { max-width: 900px; }
+.xl { max-width: 920px; }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 2;
 }
 
 .title {
@@ -68,17 +70,17 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-full);
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   background: none;
   border: none;
   flex-shrink: 0;
 }
 
 .closeButton:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-hover);
   color: var(--text-primary);
 }
 

@@ -135,9 +135,9 @@ function formatFileSize(bytes: number): string {
 }
 
 function scoreColor(score: number): { bg: string; text: string } {
-  if (score >= 7) return { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399' };
-  if (score >= 5) return { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' };
-  return { bg: 'rgba(239, 68, 68, 0.15)', text: '#f87171' };
+  if (score >= 7) return { bg: 'var(--success-bg)', text: 'var(--success)' };
+  if (score >= 5) return { bg: 'var(--warning-bg)', text: 'var(--warning)' };
+  return { bg: 'var(--danger-bg)', text: 'var(--danger)' };
 }
 
 // ─── Inline Style Definitions ─────────────────────────────────────────────────
@@ -146,7 +146,7 @@ const selectStyle: React.CSSProperties = {
   padding: '9px 14px',
   borderRadius: 'var(--radius-md)',
   border: '1px solid var(--glass-border)',
-  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  backgroundColor: 'var(--bg-secondary)',
   color: 'var(--text-primary)',
   outline: 'none',
   fontFamily: 'inherit',
@@ -195,8 +195,8 @@ function ProfileTab({ candidate }: { candidate: Candidate }) {
               <div key={i} style={{
                 padding: '16px',
                 borderRadius: 'var(--radius-md)',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--glass-border)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
                   <Briefcase size={15} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
@@ -230,8 +230,8 @@ function ProfileTab({ candidate }: { candidate: Candidate }) {
               <div key={i} style={{
                 padding: '14px 16px',
                 borderRadius: 'var(--radius-md)',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.05)',
+                background: 'var(--bg-tertiary)',
+                border: '1px solid var(--glass-border)',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '10px',
@@ -325,8 +325,8 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
         return (
           <div key={session.id} style={{
             borderRadius: 'var(--radius-md)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid var(--glass-border)',
+            background: 'var(--bg-tertiary)',
             overflow: 'hidden',
           }}>
             {/* Session header */}
@@ -379,7 +379,7 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
             {/* Expanded answers */}
             {isExpanded && answers.length > 0 && (
               <div style={{
-                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                borderTop: '1px solid var(--glass-border)',
                 padding: '16px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -393,8 +393,8 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
                       <div key={idx} style={{
                         padding: '14px',
                         borderRadius: 'var(--radius-md)',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid rgba(255, 255, 255, 0.04)',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-subtle)',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
@@ -431,7 +431,7 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
               </div>
             )}
             {isExpanded && answers.length === 0 && (
-              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <div style={{ borderTop: '1px solid var(--glass-border)', padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 No answers recorded for this session.
               </div>
             )}
@@ -479,57 +479,75 @@ function FilesTab({ candidateId }: { candidateId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      {files.map(file => (
-        <div key={file.id} style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          padding: '14px 16px',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          background: 'rgba(255, 255, 255, 0.02)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-            <FileText size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.925rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {file.file_name}
+      {files.map(file => {
+        const isPdf = /\.pdf$/i.test(file.file_name || '') || file.file_type === 'resume';
+        return (
+          <div key={file.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '14px 16px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--bg-tertiary)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                <FileText size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.925rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {file.file_name}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
+                    <span>{file.file_type}</span>
+                    <span>·</span>
+                    <span>{formatFileSize(file.file_size)}</span>
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '8px' }}>
-                <span>{file.file_type}</span>
-                <span>·</span>
-                <span>{formatFileSize(file.file_size)}</span>
-              </div>
+              {file.url && (
+                <a
+                  href={file.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--glass-border)',
+                    background: 'var(--border-subtle)',
+                    color: 'var(--accent-primary)',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Download size={14} />
+                  Open
+                </a>
+              )}
             </div>
+            {isPdf && file.url && (
+              <iframe
+                title={file.file_name}
+                src={file.url}
+                style={{
+                  width: '100%',
+                  height: '520px',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-secondary)',
+                }}
+              />
+            )}
           </div>
-          {file.url && (
-            <a
-              href={file.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--glass-border)',
-                background: 'rgba(255, 255, 255, 0.04)',
-                color: 'var(--accent-primary)',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                textDecoration: 'none',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <Download size={14} />
-              Download
-            </a>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -585,7 +603,7 @@ function ActivityTab({ candidateId }: { candidateId: string }) {
         top: '6px',
         bottom: '6px',
         width: '2px',
-        background: 'rgba(255, 255, 255, 0.06)',
+        background: 'var(--glass-border)',
         borderRadius: '1px',
       }} />
 
@@ -606,7 +624,7 @@ function ActivityTab({ candidateId }: { candidateId: string }) {
                 height: '10px',
                 borderRadius: '50%',
                 background: 'var(--accent-primary)',
-                border: '2px solid rgba(0, 0, 0, 0.4)',
+                border: '2px solid var(--bg-secondary)',
               }} />
 
               <div>

@@ -8,6 +8,7 @@ import { Candidates } from './pages/Candidates';
 import { Roles } from './pages/Roles';
 import { Applications } from './pages/Applications';
 import { Invitations } from './pages/Invitations';
+import { Analytics } from './pages/Analytics';
 import { useAuthStore } from './store/authStore';
 
 // Protected Route Wrapper
@@ -34,7 +35,7 @@ function App() {
           <Route path="/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
           <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
           <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute><div style={{padding:'24px'}}>Analytics (Coming Soon)</div></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />

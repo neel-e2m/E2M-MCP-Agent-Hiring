@@ -93,3 +93,13 @@ async def revoke_invite(
     """Revoke an active invite token."""
     await service.revoke_token(token_id)
     return {"message": "Token revoked successfully"}
+
+
+@router.delete("/{token_id}", dependencies=[Depends(require_role("admin", "hr_manager"))])
+async def delete_invite(
+    token_id: str,
+    service: Annotated[TokenService, Depends(get_token_service)],
+) -> dict:
+    """Delete an invite. Blocked (409) if the invite is still active — revoke first."""
+    await service.delete_token(token_id)
+    return {"message": "Invite deleted"}

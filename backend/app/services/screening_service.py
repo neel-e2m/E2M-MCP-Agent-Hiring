@@ -12,6 +12,7 @@ from supabase import Client
 from app.core.constants import ScreeningStatus
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging_config import get_logger
+from app.services.eligibility_service import EligibilityService
 
 logger = get_logger(__name__)
 
@@ -28,17 +29,26 @@ class ScreeningService:
         Raises:
             ConflictError: If an active session already exists.
         """
-        # Check for existing active session
+        # Return any existing session (in-progress OR completed) so re-calling
+        # start_screening is idempotent and never violates the unique constraint.
         existing = (
             self.supabase.table("screening_sessions")
-            .select("id, status")
+            .select("*")
             .eq("candidate_id", candidate_id)
             .eq("role_id", role_id)
-            .eq("status", ScreeningStatus.IN_PROGRESS.value)
             .execute()
         )
         if existing.data:
             return existing.data[0]
+
+        # Eligibility gate — a candidate must pass the role's HR-defined rules
+        # before any screening can begin. Enforced here (not just in the agent
+        # tool) so it cannot be bypassed.
+        eligibility = await EligibilityService(self.supabase).evaluate(candidate_id, role_id)
+        if not eligibility["eligible"]:
+            raise ValidationError(
+                detail="Not eligible for this role: " + "; ".join(eligibility["reasons"])
+            )
 
         # Load questions for this role
         questions = (
@@ -65,13 +75,15 @@ class ScreeningService:
 
         session = result.data[0]
 
-        # Pre-create answer slots
+        # Pre-create answer slots. Stamp the question category so the evaluator
+        # can branch (a 'prompt' question is scored differently, with an AI flag).
         for idx, q in enumerate(questions.data):
             self.supabase.table("screening_answers").insert({
                 "session_id": session["id"],
                 "candidate_id": candidate_id,
                 "question_number": idx + 1,
                 "question": q["question"],
+                "evaluation_metadata": {"category": q.get("category", "general")},
             }).execute()
 
         logger.info("screening_session_started", session_id=session["id"], total_questions=total_questions)
@@ -210,7 +222,7 @@ class ScreeningService:
         """List screening sessions, optionally filtered by candidate."""
         query = (
             self.supabase.table("screening_sessions")
-            .select("*, candidates(name, email)")
+            .select("*, candidates(name, email), screening_answers(*)")
             .order("started_at", desc=True)
         )
         if candidate_id:

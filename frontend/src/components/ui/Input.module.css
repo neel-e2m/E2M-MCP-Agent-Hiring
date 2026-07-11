@@ -1,14 +1,15 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
 }
 
 .label {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-secondary);
+  letter-spacing: -0.005em;
 }
 
 .inputWrapper {
@@ -19,7 +20,7 @@
 
 .icon {
   position: absolute;
-  left: 12px;
+  left: 13px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -28,27 +29,27 @@
 
 .input {
   width: 100%;
-  height: 40px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--glass-border);
+  height: 42px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0 12px;
+  padding: 0 14px;
   color: var(--text-primary);
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .withIcon {
-  padding-left: 36px;
+  padding-left: 38px;
 }
 
 .input:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--text-muted);
 }
 
 .input:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 1px var(--accent-primary);
+  box-shadow: 0 0 0 3.5px rgba(29, 29, 31, 0.10);
 }
 
 .input::placeholder {
@@ -56,8 +57,9 @@
 }
 
 .input:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+  background: var(--surface-sunken);
 }
 
 .error {
@@ -65,7 +67,7 @@
 }
 
 .error:focus {
-  box-shadow: 0 0 0 1px var(--danger) !important;
+  box-shadow: 0 0 0 3.5px rgba(201, 55, 44, 0.14) !important;
 }
 
 .errorMessage {

@@ -1,29 +1,27 @@
 .card {
-  background: var(--glass-bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
   position: relative;
-  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.2);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.3);
+  border-color: var(--border);
+  box-shadow: var(--shadow-md);
 }
 
 .header {
-  padding: 24px 24px 16px;
+  padding: 22px 24px 14px;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 .title {
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -32,15 +30,16 @@
 .description {
   font-size: 0.875rem;
   color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .content {
-  padding: 0 24px 24px;
+  padding: 0 24px 22px;
 }
 
 .footer {
   padding: 16px 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
 }

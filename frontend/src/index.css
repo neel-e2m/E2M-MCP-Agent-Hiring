@@ -1,37 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700&display=swap');
 
 :root {
-  /* Colors */
-  --bg-primary: #0a0a0b;
-  --bg-secondary: #121214;
-  --bg-tertiary: #1a1a1e;
-  
-  --text-primary: #f8f9fa;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
-  
-  --accent-primary: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #3b82f6;
+  /* ===== Surfaces ===== */
+  --bg-primary: #f5f5f7;      /* app canvas — Apple light gray */
+  --bg-secondary: #ffffff;    /* cards, modals, sidebar */
+  --bg-tertiary: #f5f5f7;     /* subtle fills */
+  --surface-hover: #f0f0f2;   /* hover fill */
+  --surface-sunken: #f5f5f7;  /* inputs, code blocks */
 
-  /* Glassmorphism */
-  --glass-bg: rgba(18, 18, 20, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  
-  /* Layout */
+  /* ===== Text ===== */
+  --text-primary: #1d1d1f;    /* near-black (Apple) */
+  --text-secondary: #6e6e73;
+  --text-muted: #86868b;
+
+  /* ===== Brand accent (monochrome) ===== */
+  --accent-primary: #1d1d1f;
+  --accent-hover: #000000;
+  --accent-gradient: linear-gradient(180deg, #3a3a3c 0%, #1d1d1f 100%);
+  --accent-soft: #f0f0f2;     /* neutral tinted accent surface */
+
+  /* ===== Semantic — tuned for light bg ===== */
+  --success: #1a7f4b;
+  --success-bg: #e9f7ef;
+  --success-border: #c3e8d3;
+
+  --warning: #96690c;
+  --warning-bg: #fdf4e3;
+  --warning-border: #f2ddb0;
+
+  --danger: #c9372c;
+  --danger-bg: #fdecea;
+  --danger-border: #f4c7c1;
+
+  --info: #1d1d1f;            /* monochrome — info reads as neutral */
+  --info-bg: #f0f0f2;
+  --info-border: #e2e2e6;
+
+  /* ===== Lines / borders ===== */
+  --glass-bg: #ffffff;        /* legacy alias → white surface */
+  --glass-border: #e5e5e7;    /* hairline */
+  --border: #d2d2d7;
+  --border-subtle: #ececee;
+
+  /* ===== Layout ===== */
   --sidebar-width: 260px;
   --topbar-height: 64px;
-  
-  /* Radii */
-  --radius-sm: 6px;
+
+  /* ===== Radii ===== */
+  --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 20px;
+  --radius-lg: 18px;
   --radius-full: 9999px;
+
+  /* ===== Shadows — soft, diffuse (Apple) ===== */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.05), 0 6px 20px -8px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 12px 40px -8px rgba(0, 0, 0, 0.14);
+  --shadow-xl: 0 24px 64px -12px rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -40,13 +66,20 @@
   padding: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
+  letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -59,6 +92,7 @@ button {
   border: none;
   background: none;
   cursor: pointer;
+  color: inherit;
 }
 
 input, textarea, select {
@@ -72,37 +106,46 @@ input:focus, textarea:focus, select:focus {
   outline: none;
 }
 
-/* Scrollbar */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary);
+}
+
+/* Scrollbar — thin, unobtrusive */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
+  background: #d2d2d7;
+  border: 3px solid transparent;
+  background-clip: padding-box;
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #27272a;
+  background: #b4b4b9;
+  background-clip: padding-box;
 }
 
-/* Utilities */
+/* Text selection */
+::selection {
+  background: rgba(29, 29, 31, 0.12);
+}
+
+/* ===== Utilities ===== */
 .glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
-.text-gradient {
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Global entrance animation (referenced by page inline styles) */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

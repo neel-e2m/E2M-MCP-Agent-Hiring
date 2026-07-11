@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from supabase import Client
 
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.logging_config import get_logger
 from app.core.security import SecurityService
 
@@ -95,12 +96,65 @@ class TokenService:
             logger.error("token_validation_error", error=str(e))
             return None
 
+    @staticmethod
+    def usable_reason(token: dict, check_limit: bool = True) -> str | None:
+        """Return a human message if the token is NOT usable, else ``None``.
+
+        A token is usable when it is not revoked, not expired, and (when
+        ``check_limit``) still has uses left. ``max_uses < 0`` means unlimited.
+        """
+        if token.get("is_revoked"):
+            return "This invite has been revoked."
+        try:
+            expires_at = datetime.fromisoformat(str(token["expires_at"]).replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) > expires_at:
+                return "This invite has expired."
+        except (KeyError, ValueError):
+            pass
+        if check_limit:
+            max_uses = token.get("max_uses", 1)
+            if max_uses is not None and max_uses >= 0 and (token.get("use_count") or 0) >= max_uses:
+                return "This invite has reached its usage limit."
+        return None
+
+    async def consume_use(self, token_id: str) -> None:
+        """Increment a token's use count, marking it used when the limit is hit."""
+        t = (
+            self.supabase.table("access_tokens")
+            .select("use_count, max_uses")
+            .eq("id", token_id)
+            .single()
+            .execute()
+        ).data or {}
+        new_count = (t.get("use_count") or 0) + 1
+        max_uses = t.get("max_uses", 1)
+        is_used = max_uses is not None and max_uses >= 0 and new_count >= max_uses
+        self.supabase.table("access_tokens").update(
+            {"use_count": new_count, "is_used": is_used}
+        ).eq("id", token_id).execute()
+
     async def revoke_token(self, token_id: str) -> None:
         """Revoke an invite token by ID."""
         self.supabase.table("access_tokens").update(
             {"is_revoked": True}
         ).eq("id", token_id).execute()
         logger.info("token_revoked", token_id=token_id)
+
+    async def delete_token(self, token_id: str) -> None:
+        """Delete an invite token — only allowed when it is NOT active.
+
+        Active (still-usable) invites must be revoked first, so a live invite is
+        never silently removed from under a candidate.
+        """
+        t = (
+            self.supabase.table("access_tokens").select("*").eq("id", token_id).single().execute()
+        ).data
+        if not t:
+            raise NotFoundError(detail="Invite not found")
+        if self.usable_reason(t) is None:
+            raise ConflictError(detail="Active invites can't be deleted. Revoke it first.")
+        self.supabase.table("access_tokens").delete().eq("id", token_id).execute()
+        logger.info("token_deleted", token_id=token_id)
 
     async def list_tokens(
         self,
@@ -136,23 +190,25 @@ class TokenService:
         return result.data
 
     async def get_token_stats(self) -> dict:
-        """Aggregate stats about invite tokens."""
+        """Aggregate stats about invite tokens (unlimited-aware)."""
         all_tokens = (
             self.supabase.table("access_tokens")
-            .select("id, is_used, is_revoked, expires_at")
+            .select("id, is_revoked, use_count, max_uses, expires_at")
             .eq("token_type", "invite")
             .execute()
         )
         tokens = all_tokens.data or []
-        now = datetime.now(timezone.utc)
-        active = [
-            t for t in tokens
-            if not t["is_revoked"]
-            and datetime.fromisoformat(t["expires_at"].replace("Z", "+00:00")) > now
-        ]
+
+        def is_maxed(t: dict) -> bool:
+            mu = t.get("max_uses", 1)
+            return mu is not None and mu >= 0 and (t.get("use_count") or 0) >= mu
+
+        revoked = sum(1 for t in tokens if t.get("is_revoked"))
+        active = sum(1 for t in tokens if self.usable_reason(t) is None)
+        used = sum(1 for t in tokens if not t.get("is_revoked") and is_maxed(t))
         return {
             "total": len(tokens),
-            "active": len(active),
-            "used": sum(1 for t in tokens if t["is_used"]),
-            "revoked": sum(1 for t in tokens if t["is_revoked"]),
+            "active": active,
+            "used": used,
+            "revoked": revoked,
         }

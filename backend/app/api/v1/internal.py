@@ -7,6 +7,8 @@ from app.services.token_service import TokenService
 from app.services.candidate_service import CandidateService
 from app.services.screening_service import ScreeningService
 from app.services.application_service import ApplicationService
+from app.services.eligibility_service import EligibilityService
+from app.services.resume_service import ResumeService
 from app.services.llm_service import LLMService
 from app.core.logging_config import get_logger
 
@@ -46,6 +48,16 @@ class SubmitApplicationRequest(BaseModel):
     role_id: str
 
 
+class ResumeUploadRequest(BaseModel):
+    file_base64: str
+    filename: str = "resume.pdf"
+
+
+class EligibilityCheckRequest(BaseModel):
+    candidate_id: str
+    role_id: str
+
+
 @router.post("/verify-token")
 async def verify_token(req: VerifyTokenRequest, supabase=Depends(get_supabase)):
     token_service = TokenService(supabase)
@@ -65,19 +77,78 @@ async def verify_token(req: VerifyTokenRequest, supabase=Depends(get_supabase)):
 async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get_supabase)):
     token_service = TokenService(supabase)
     token_data = await token_service.validate_token(req.token)
-    if not token_data or token_data["is_revoked"]:
-        raise HTTPException(status_code=400, detail="Invalid or revoked token")
-    
+    if not token_data:
+        raise HTTPException(status_code=400, detail="Invalid invite token")
+
+    # Returning candidate (same email) vs brand-new one.
+    existing = supabase.table("candidates").select("id").eq("email", req.email).execute()
+    is_new = not existing.data
+
+    # Enforce the invite lifecycle. Revoked / expired always block; the usage limit
+    # only blocks a NEW candidate taking a fresh slot (a returning candidate can resume).
+    reason = TokenService.usable_reason(token_data, check_limit=is_new)
+    if reason:
+        raise HTTPException(status_code=400, detail=reason)
+
+    # The invite is bound to exactly one role; make sure it still accepts applicants.
+    role = (
+        supabase.table("roles")
+        .select("id, title, description, requirements, is_active, screening_config")
+        .eq("id", token_data["role_id"])
+        .single()
+        .execute()
+    ).data
+    if not role or not role.get("is_active"):
+        raise HTTPException(status_code=400, detail="This role is no longer accepting applications.")
+
     candidate_service = CandidateService(supabase)
     candidate = await candidate_service.create_candidate(
         name=req.name,
         email=req.email,
         phone=req.phone,
-        token_id=token_data["id"]
+        token_id=token_data["id"],
     )
+    if is_new:
+        await token_service.consume_use(token_data["id"])
+
+    sc = role.get("screening_config") or {}
     return {
         "candidate_id": candidate["id"],
-        "role_id": token_data["role_id"]
+        "role_id": token_data["role_id"],
+        "role": {
+            "title": role.get("title"),
+            "description": role.get("description"),
+            "requirements": role.get("requirements") or [],
+            "eligibility_rules": sc.get("eligibility_rules") or {},
+            "has_prompt_question": bool(sc.get("prompt_question")),
+        },
+    }
+
+
+@router.get("/roles/{role_id}")
+async def internal_get_role(role_id: str, supabase=Depends(get_supabase)):
+    """Public-safe role details for the candidate's agent (what they're applying to)."""
+    r = (
+        supabase.table("roles")
+        .select("id, title, description, requirements, department, location, employment_type, is_active, screening_config")
+        .eq("id", role_id)
+        .single()
+        .execute()
+    ).data
+    if not r:
+        raise HTTPException(status_code=404, detail="Role not found")
+    sc = r.get("screening_config") or {}
+    return {
+        "id": r["id"],
+        "title": r.get("title"),
+        "description": r.get("description"),
+        "requirements": r.get("requirements") or [],
+        "department": r.get("department"),
+        "location": r.get("location"),
+        "employment_type": r.get("employment_type"),
+        "is_active": r.get("is_active"),
+        "eligibility_rules": sc.get("eligibility_rules") or {},
+        "has_prompt_question": bool(sc.get("prompt_question")),
     }
 
 @router.put("/candidates/{candidate_id}/profile")
@@ -93,6 +164,23 @@ async def update_profile(candidate_id: str, req: UpdateProfileRequest, supabase=
         await candidate_service.update_status(candidate_id, "complete")
         
     return {"status": "success"}
+
+@router.post("/candidates/{candidate_id}/resume")
+async def submit_resume(candidate_id: str, req: ResumeUploadRequest, supabase=Depends(get_supabase)):
+    """Store a candidate's resume PDF (sent as base64 by the agent)."""
+    resume_service = ResumeService(supabase)
+    record = await resume_service.upload_base64(candidate_id, req.file_base64, req.filename)
+    return {
+        "status": "success",
+        "file_id": record["id"],
+        "file_name": record["file_name"],
+    }
+
+@router.post("/eligibility/check")
+async def check_eligibility(req: EligibilityCheckRequest, supabase=Depends(get_supabase)):
+    """Evaluate a candidate against the role's HR-defined eligibility rules."""
+    service = EligibilityService(supabase)
+    return await service.evaluate(req.candidate_id, req.role_id)
 
 @router.post("/screening/start")
 async def start_screening(req: StartScreeningRequest, supabase=Depends(get_supabase)):
@@ -118,54 +206,59 @@ async def submit_answer(req: SubmitAnswerRequest, supabase=Depends(get_supabase)
     screening_service = ScreeningService(supabase)
     llm_service = LLMService()
     
-    # Retrieve the answer_id based on session_id and question_number
-    q_data = supabase.table("screening_answers").select("id, question").eq("session_id", req.session_id).eq("question_number", req.question_number).single().execute()
+    # Retrieve the answer slot (with its category) for this question
+    q_data = supabase.table("screening_answers").select("id, question, evaluation_metadata").eq("session_id", req.session_id).eq("question_number", req.question_number).single().execute()
     if not q_data.data:
         raise HTTPException(status_code=404, detail="Question not found")
-        
+
     answer_id = q_data.data["id"]
     question_text = q_data.data["question"]
-    
+    category = (q_data.data.get("evaluation_metadata") or {}).get("category", "general")
+
     # Store answer
-    res = await screening_service.submit_answer(req.session_id, answer_id, req.answer)
-    
-    # Evaluate with LLM
-    eval_result = await llm_service.evaluate_answer(question_text, req.answer)
-    
-    # Update evaluation
+    await screening_service.submit_answer(req.session_id, answer_id, req.answer)
+
+    # Evaluate with the LLM — the 'prompt' question uses prompt-quality scoring
+    # plus an AI-generated flag; all others use the standard evaluator.
+    if category == "prompt":
+        eval_result = await llm_service.evaluate_prompt(question_text, req.answer)
+        metadata = {
+            "category": "prompt",
+            "strengths": eval_result.get("strengths", []),
+            "improvements": eval_result.get("improvements", []),
+            "ai_generated_likelihood": eval_result.get("ai_generated_likelihood", 0.0),
+            "ai_flag": eval_result.get("ai_flag", False),
+        }
+    else:
+        eval_result = await llm_service.evaluate_answer(question_text, req.answer)
+        metadata = {
+            "category": category,
+            "strengths": eval_result.get("strengths", []),
+            "improvements": eval_result.get("improvements", []),
+        }
+
     await screening_service.update_answer_evaluation(
         answer_id,
         eval_result.get("score", 0.0),
         eval_result.get("feedback", ""),
-        metadata={"strengths": eval_result.get("strengths", []), "improvements": eval_result.get("improvements", [])}
+        metadata=metadata,
     )
-    
+
     return {
         "status": "success",
         "score": eval_result.get("score"),
-        "feedback": eval_result.get("feedback")
+        "feedback": eval_result.get("feedback"),
+        "ai_flag": metadata.get("ai_flag", False),
     }
 
 @router.post("/applications/submit")
 async def submit_application(req: SubmitApplicationRequest, supabase=Depends(get_supabase)):
     app_service = ApplicationService(supabase)
-    
-    # Dummy resume so application doesn't fail on resume check if we skip it in MCP flow
-    # Wait, the validation requires a resume. Let's insert a dummy resume if none exists.
-    resume = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
-    if not resume.data:
-        supabase.table("candidate_files").insert({
-            "candidate_id": req.candidate_id,
-            "file_type": "resume",
-            "file_name": "dummy_resume.pdf",
-            "file_size": 1024,
-            "storage_path": "dummy/path.pdf"
-        }).execute()
-        
+    # A real resume is now required (uploaded via submit_resume) — no dummy fallback.
     app = await app_service.submit(req.candidate_id, req.role_id)
     return {
         "application_id": app["id"],
-        "status": app["status"]
+        "status": app["status"],
     }
 
 @router.get("/applications/{candidate_id}/{role_id}/status")

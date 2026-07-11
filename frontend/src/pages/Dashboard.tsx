@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Users, Briefcase, Inbox, Activity, FileText, Send, UserPlus, CheckCircle, XCircle, Clock } from 'lucide-react';
+import {
+  Users, Briefcase, Inbox, Activity, FileText, Send, UserPlus,
+  CheckCircle, XCircle, Clock, TrendingUp,
+} from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LabelList, Cell,
+} from 'recharts';
 import api from '../lib/api';
 import styles from './Dashboard.module.css';
 
@@ -50,20 +57,12 @@ function timeAgo(timestamp: string): string {
   return date.toLocaleDateString();
 }
 
-const activityIconMap: Record<string, { icon: typeof Activity; bg: string; color: string }> = {
-  application: { icon: Send, bg: 'rgba(59, 130, 246, 0.12)', color: 'var(--info)' },
-  candidate: { icon: UserPlus, bg: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)' },
-  approved: { icon: CheckCircle, bg: 'rgba(16, 185, 129, 0.12)', color: 'var(--success)' },
-  rejected: { icon: XCircle, bg: 'rgba(239, 68, 68, 0.12)', color: 'var(--danger)' },
-  review: { icon: Clock, bg: 'rgba(245, 158, 11, 0.12)', color: 'var(--warning)' },
-};
-
-const pipelineColors: Record<string, string> = {
-  submitted: 'var(--info)',
-  under_review: 'var(--warning)',
-  shortlisted: 'var(--accent-primary)',
-  approved: 'var(--success)',
-  rejected: 'var(--danger)',
+const activityIconMap: Record<string, typeof Activity> = {
+  application: Send,
+  candidate: UserPlus,
+  approved: CheckCircle,
+  rejected: XCircle,
+  review: Clock,
 };
 
 const pipelineLabels: Record<string, string> = {
@@ -73,6 +72,19 @@ const pipelineLabels: Record<string, string> = {
   approved: 'Approved',
   rejected: 'Rejected',
 };
+
+/* ── Minimal light tooltip ── */
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className={styles.tooltip}>
+      <span className={styles.tooltipLabel}>{label}</span>
+      <span className={styles.tooltipValue}>
+        {payload[0].value}{payload[0].payload?.suffix || ''}
+      </span>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -104,28 +116,29 @@ export function Dashboard() {
   }, []);
 
   const statCards = [
-    { label: 'Total Candidates', value: stats?.total_candidates || 0, icon: Users, color: 'var(--info)' },
-    { label: 'Active Roles', value: stats?.active_roles || 0, icon: Briefcase, color: 'var(--accent-primary)' },
-    { label: 'Pending Reviews', value: stats?.pending_reviews || 0, icon: Inbox, color: 'var(--warning)' },
-    { label: 'Applications', value: stats?.total_applications || 0, icon: FileText, color: 'var(--danger)' },
-    { label: 'Avg Score', value: `${stats?.avg_screening_score || 0}/10`, icon: Activity, color: 'var(--success)' },
+    { label: 'Total Candidates', value: stats?.total_candidates ?? 0, icon: Users },
+    { label: 'Active Roles', value: stats?.active_roles ?? 0, icon: Briefcase },
+    { label: 'Pending Reviews', value: stats?.pending_reviews ?? 0, icon: Inbox },
+    { label: 'Applications', value: stats?.total_applications ?? 0, icon: FileText },
+    { label: 'Avg Score', value: `${stats?.avg_screening_score ?? 0}`, suffix: '/10', icon: TrendingUp },
   ];
 
-  // Pipeline max for proportional bar widths
-  const pipelineEntries = pipeline
-    ? Object.entries(pipeline) as [string, number][]
+  const pipelineData = pipeline
+    ? (Object.entries(pipeline) as [string, number][]).map(([key, value]) => ({
+        name: pipelineLabels[key] || key,
+        value,
+      }))
     : [];
-  const pipelineMax = pipelineEntries.length > 0
-    ? Math.max(...pipelineEntries.map(([, v]) => v), 1)
-    : 1;
 
-  // Scores max for proportional bar heights
-  const scoreBuckets: [string, number][] = scores
-    ? [['0-2', scores['0-2']], ['2-4', scores['2-4']], ['4-6', scores['4-6']], ['6-8', scores['6-8']], ['8-10', scores['8-10']]]
+  const scoreData = scores
+    ? [
+        { bucket: '0–2', count: scores['0-2'] },
+        { bucket: '2–4', count: scores['2-4'] },
+        { bucket: '4–6', count: scores['4-6'] },
+        { bucket: '6–8', count: scores['6-8'] },
+        { bucket: '8–10', count: scores['8-10'] },
+      ]
     : [];
-  const scoresMax = scoreBuckets.length > 0
-    ? Math.max(...scoreBuckets.map(([, v]) => v), 1)
-    : 1;
 
   return (
     <div className={styles.container}>
@@ -140,113 +153,99 @@ export function Dashboard() {
       <div className={styles.statsGrid}>
         {statCards.map((stat, i) => (
           <Card key={i} className={styles.statCard}>
-            <CardContent className={styles.statContent}>
-              <div>
-                <p className={styles.statLabel}>{stat.label}</p>
-                <h3 className={styles.statValue}>
-                  {loading ? '...' : stat.value}
-                </h3>
+            <div className={styles.statContent}>
+              <div className={styles.statIcon}>
+                <stat.icon size={19} />
               </div>
-              <div className={styles.statIcon} style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
-                <stat.icon size={24} />
-              </div>
-            </CardContent>
+              <p className={styles.statLabel}>{stat.label}</p>
+              <h3 className={styles.statValue}>
+                {loading ? <span className={styles.skeleton} /> : (
+                  <>{stat.value}<span className={styles.statSuffix}>{stat.suffix || ''}</span></>
+                )}
+              </h3>
+            </div>
           </Card>
         ))}
       </div>
 
-      {/* Main 2-column grid */}
+      {/* Main grid */}
       <div className={styles.mainGrid}>
-        {/* Left column: Pipeline + Scores */}
         <div className={styles.leftColumn}>
-          {/* Pipeline Overview */}
+          {/* Pipeline */}
           <Card>
             <CardHeader>
-              <CardTitle>Pipeline Overview</CardTitle>
+              <CardTitle>Applications Pipeline</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className={styles.emptyState}><p>Loading...</p></div>
+                <div className={styles.chartEmpty}>Loading…</div>
+              ) : pipelineData.every(d => d.value === 0) ? (
+                <div className={styles.chartEmpty}>No application data yet.</div>
               ) : (
-                <div className={styles.pipelineList}>
-                  {pipelineEntries.map(([key, count]) => (
-                    <div key={key} className={styles.pipelineItem}>
-                      <span className={styles.pipelineLabel}>
-                        {pipelineLabels[key] || key}
-                      </span>
-                      <div className={styles.pipelineBarTrack}>
-                        <div
-                          className={styles.pipelineBarFill}
-                          style={{
-                            width: `${(count / pipelineMax) * 100}%`,
-                            backgroundColor: pipelineColors[key] || 'var(--accent-primary)',
-                          }}
-                        />
-                      </div>
-                      <span className={styles.pipelineCount}>{count}</span>
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={230}>
+                  <BarChart data={pipelineData} layout="vertical" margin={{ top: 4, right: 28, bottom: 0, left: 8 }} barCategoryGap={12}>
+                    <CartesianGrid horizontal={false} stroke="var(--border-subtle)" />
+                    <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 12.5 }} axisLine={false} tickLine={false} width={92} />
+                    <Tooltip cursor={{ fill: 'var(--surface-hover)' }} content={<ChartTooltip />} />
+                    <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 6, 6, 0]} barSize={20}>
+                      <LabelList dataKey="value" position="right" fill="var(--text-primary)" fontSize={12} fontWeight={600} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
 
-          {/* Screening Scores */}
+          {/* Scores */}
           <Card>
             <CardHeader>
-              <CardTitle>Screening Scores</CardTitle>
+              <CardTitle>Screening Score Distribution</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className={styles.emptyState}><p>Loading...</p></div>
+                <div className={styles.chartEmpty}>Loading…</div>
+              ) : scoreData.every(d => d.count === 0) ? (
+                <div className={styles.chartEmpty}>No screening scores yet.</div>
               ) : (
-                <div className={styles.scoresChart}>
-                  {scoreBuckets.map(([bucket, count]) => (
-                    <div key={bucket} className={styles.scoreBar}>
-                      <span className={styles.scoreBarValue}>{count}</span>
-                      <div
-                        className={styles.scoreBarFill}
-                        style={{ height: `${(count / scoresMax) * 100}%` }}
-                      />
-                      <span className={styles.scoreBarLabel}>{bucket}</span>
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={210}>
+                  <BarChart data={scoreData} margin={{ top: 16, right: 8, bottom: 0, left: -18 }} barCategoryGap={18}>
+                    <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
+                    <XAxis dataKey="bucket" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip cursor={{ fill: 'var(--surface-hover)' }} content={<ChartTooltip />} />
+                    <Bar dataKey="count" fill="var(--accent-primary)" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                      {scoreData.map((_, i) => <Cell key={i} fill="var(--accent-primary)" />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Right column: Activity Feed */}
+        {/* Activity */}
         <Card className={styles.activityCard}>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className={styles.emptyState}><p>Loading...</p></div>
+              <div className={styles.chartEmpty}>Loading…</div>
             ) : activities.length === 0 ? (
               <div className={styles.emptyState}>
-                <Inbox size={48} className={styles.emptyIcon} />
+                <Inbox size={40} className={styles.emptyIcon} />
                 <p>No recent activity.</p>
                 <span>When candidates apply via their AI agents, activity will appear here.</span>
               </div>
             ) : (
               <div className={styles.activityList}>
                 {activities.map((item) => {
-                  const iconConfig = activityIconMap[item.type] || activityIconMap.application || {
-                    icon: Activity,
-                    bg: 'rgba(99, 102, 241, 0.12)',
-                    color: 'var(--accent-primary)',
-                  };
-                  const IconComp = iconConfig.icon;
+                  const IconComp = activityIconMap[item.type] || Activity;
                   return (
                     <div key={item.id} className={styles.activityItem}>
-                      <div
-                        className={styles.activityIcon}
-                        style={{ backgroundColor: iconConfig.bg, color: iconConfig.color }}
-                      >
-                        <IconComp size={16} />
+                      <div className={styles.activityIcon}>
+                        <IconComp size={15} />
                       </div>
                       <div className={styles.activityContent}>
                         <p className={styles.activityMessage}>{item.message}</p>

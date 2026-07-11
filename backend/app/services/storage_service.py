@@ -18,6 +18,26 @@ class StorageService:
     def __init__(self, supabase: Client):
         self.supabase = supabase
 
+    async def ensure_bucket(self, bucket: str) -> None:
+        """Create a private bucket if it does not already exist (idempotent).
+
+        Lets the app work against a fresh Supabase project without manual setup.
+        Failures are logged but not raised — the subsequent upload will surface a
+        hard error if the bucket is genuinely unavailable.
+        """
+        try:
+            existing = self.supabase.storage.list_buckets()
+            for b in existing or []:
+                bid = getattr(b, "id", None) or getattr(b, "name", None)
+                if bid is None and isinstance(b, dict):
+                    bid = b.get("id") or b.get("name")
+                if bid == bucket:
+                    return
+            self.supabase.storage.create_bucket(bucket)
+            logger.info("bucket_created", bucket=bucket)
+        except Exception as exc:  # noqa: BLE001 — best-effort, upload will re-check
+            logger.warning("ensure_bucket_failed", bucket=bucket, error=str(exc))
+
     async def upload_file(self, bucket: str, path: str, content: bytes, content_type: str) -> str:
         """Upload a file to a bucket.
 

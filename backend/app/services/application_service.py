@@ -11,6 +11,7 @@ from supabase import Client
 from app.core.constants import ApplicationStatus, ProfileStatus, ScreeningStatus
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging_config import get_logger
+from app.services.eligibility_service import EligibilityService
 
 logger = get_logger(__name__)
 
@@ -78,24 +79,51 @@ class ApplicationService:
         if not screening.data or screening.data[0].get("status") != ScreeningStatus.COMPLETED:
             raise ValidationError(detail="You must complete the technical screening before applying")
 
-        technical_score = screening.data[0].get("total_score", 0.0)
+        technical_score = screening.data[0].get("total_score", 0.0) or 0.0
 
-        # 5. For now, profile score is a placeholder. Overall score is just technical score.
+        # 5. Eligibility re-check (defense in depth — also enforced at screening start).
+        eligibility = await EligibilityService(self.supabase).evaluate(candidate_id, role_id)
+        if not eligibility["eligible"]:
+            raise ValidationError(
+                detail="Not eligible for this role: " + "; ".join(eligibility["reasons"])
+            )
+
+        # 6. Overall score (equals the prompt score when it is the only question).
         profile_score = 0.0
         overall_score = technical_score
 
-        # 6. Submit application
+        # 7. Auto shortlist / reject from the role's configurable threshold (toggleable).
+        role = (
+            self.supabase.table("roles").select("screening_config").eq("id", role_id).single().execute().data
+        )
+        scoring = ((role or {}).get("screening_config") or {}).get("scoring") or {}
+        status = ApplicationStatus.SUBMITTED.value
+        metadata: dict = {"eligibility": eligibility}
+        if scoring.get("auto_shortlist_enabled"):
+            try:
+                threshold = float(scoring.get("shortlist_threshold", 7.0) or 0.0)
+            except (TypeError, ValueError):
+                threshold = 7.0
+            if float(overall_score) >= threshold:
+                status = ApplicationStatus.SHORTLISTED.value
+                metadata["auto_status_reason"] = f"Auto-shortlisted: score {overall_score} ≥ threshold {threshold}"
+            else:
+                status = ApplicationStatus.REJECTED.value
+                metadata["auto_status_reason"] = f"Auto-rejected: score {overall_score} < threshold {threshold}"
+
+        # 8. Submit application
         result = self.supabase.table("applications").insert({
             "candidate_id": candidate_id,
             "role_id": role_id,
             "technical_score": technical_score,
             "profile_score": profile_score,
             "overall_score": overall_score,
-            "status": ApplicationStatus.SUBMITTED,
+            "status": status,
+            "metadata": metadata,
         }).execute()
 
         app_data = result.data[0]
-        logger.info("application_submitted", application_id=app_data["id"], candidate_id=candidate_id)
+        logger.info("application_submitted", application_id=app_data["id"], candidate_id=candidate_id, status=status)
         
         # Trigger WebSocket broadcast would happen here or in the router layer
         return app_data

@@ -25,6 +25,7 @@ class RoleCreate(BaseModel):
     department: str | None = None
     location: str | None = None
     employment_type: str = "full_time"
+    screening_config: dict | None = None
 
 
 class RoleUpdate(BaseModel):
@@ -34,6 +35,7 @@ class RoleUpdate(BaseModel):
     department: str | None = None
     location: str | None = None
     employment_type: str | None = None
+    screening_config: dict | None = None
 
 
 class QuestionCreate(BaseModel):
@@ -88,6 +90,16 @@ async def toggle_role_status(
 ) -> dict:
     """Toggle a role's active status."""
     return await service.toggle_status(role_id)
+
+
+@router.delete("/{role_id}", dependencies=[Depends(require_role("admin", "hr_manager"))])
+async def delete_role(
+    role_id: str,
+    service: Annotated[RoleService, Depends(get_role_service)],
+) -> dict:
+    """Permanently delete a role. Blocked (409) if it has applications."""
+    await service.delete_role(role_id)
+    return {"message": "Role deleted"}
 
 
 # ── Questions ─────────────────────────────────────────────────────────────
