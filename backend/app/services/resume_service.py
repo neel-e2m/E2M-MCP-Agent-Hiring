@@ -140,3 +140,44 @@ class ResumeService:
             raise NotFoundError(detail="No resume found for this candidate")
             
         return result.data[0].get("parsed_data") or {}
+
+    async def upload_url(self, candidate_id: str, url: str) -> dict:
+        """Download a resume PDF from a public URL and store it."""
+        import httpx
+        from urllib.parse import urlparse
+        import os
+        
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                content = response.content
+        except Exception as exc:
+            raise ValidationError(detail=f"Failed to download resume from URL: {str(exc)}") from exc
+
+        if not content:
+            raise ValidationError(detail="Downloaded resume file is empty")
+        if len(content) > MAX_RESUME_BYTES:
+            raise ValidationError(detail="Resume exceeds the 5 MB limit")
+
+        # Try to infer filename from URL or headers
+        filename = "resume.pdf"
+        parsed = urlparse(url)
+        basename = os.path.basename(parsed.path)
+        if basename and basename.lower().endswith(".pdf"):
+            filename = basename
+        elif "content-disposition" in response.headers:
+            cd = response.headers["content-disposition"]
+            if "filename=" in cd:
+                filename = cd.split("filename=")[1].strip('"\'')
+        
+        if not filename.lower().endswith(".pdf"):
+            filename = f"{filename}.pdf"
+
+        # Ensure the bucket exists and clear any previous resume records for this candidate
+        await self.storage.ensure_bucket("resumes")
+        self.supabase.table("candidate_files").delete().eq(
+            "candidate_id", candidate_id
+        ).eq("file_type", "resume").execute()
+
+        return await self.upload(candidate_id, content, filename, "application/pdf")

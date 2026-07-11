@@ -52,6 +52,9 @@ class ResumeUploadRequest(BaseModel):
     file_base64: str
     filename: str = "resume.pdf"
 
+class ResumeUrlUploadRequest(BaseModel):
+    url: str
+
 
 class EligibilityCheckRequest(BaseModel):
     candidate_id: str
@@ -170,6 +173,17 @@ async def submit_resume(candidate_id: str, req: ResumeUploadRequest, supabase=De
     """Store a candidate's resume PDF (sent as base64 by the agent)."""
     resume_service = ResumeService(supabase)
     record = await resume_service.upload_base64(candidate_id, req.file_base64, req.filename)
+    return {
+        "status": "success",
+        "file_id": record["id"],
+        "file_name": record["file_name"],
+    }
+
+@router.post("/candidates/{candidate_id}/resume-url")
+async def submit_resume_url(candidate_id: str, req: ResumeUrlUploadRequest, supabase=Depends(get_supabase)):
+    """Download and store a candidate's resume PDF from a public URL."""
+    resume_service = ResumeService(supabase)
+    record = await resume_service.upload_url(candidate_id, req.url)
     return {
         "status": "success",
         "file_id": record["id"],

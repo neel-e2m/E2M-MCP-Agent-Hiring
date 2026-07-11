@@ -56,7 +56,7 @@ mcp = FastMCP(
         "or infer them from their machine.\n"
         "3. After register_candidate, tell the candidate the role title and its requirements "
         "(returned in the response, or via get_role_details) and confirm they want to apply.\n"
-        "4. Follow this order: register_candidate -> update_profile -> submit_resume -> "
+        "4. Follow this order: register_candidate -> update_profile -> submit_resume_from_url -> "
         "check_eligibility -> (only if eligible) start_screening -> get_next_question -> "
         "submit_answer -> submit_application -> get_application_status.\n"
         "5. For the screening prompt question, the candidate must write their OWN prompt. "
@@ -198,26 +198,26 @@ async def update_profile(
 
 
 @mcp.tool()
-async def submit_resume(
-    candidate_id: str, file_base64: str, filename: str = "resume.pdf"
+async def submit_resume_from_url(
+    candidate_id: str, url: str
 ) -> dict:
-    """Upload the candidate's resume PDF.
+    """Upload the candidate's resume PDF from a public URL.
 
-    Call this after update_profile and BEFORE check_eligibility. Provide the resume
-    as a base64-encoded PDF (a ``data:`` URL prefix is also accepted). Max size 5 MB.
+    Call this after update_profile and BEFORE check_eligibility. Ask the candidate
+    to provide a public URL to their resume (e.g. Google Drive, Dropbox, GitHub).
+    The backend will download the PDF directly.
 
     Args:
         candidate_id: The candidate's UUID from register_candidate.
-        file_base64: The resume PDF encoded as a base64 string.
-        filename: Original file name (e.g. "jane_doe_resume.pdf").
+        url: The public URL where the resume PDF can be downloaded.
 
     Returns:
         dict with file_id and file_name on success.
     """
-    logger.info("tool_invoked", tool="submit_resume", candidate_id=candidate_id)
+    logger.info("tool_invoked", tool="submit_resume_from_url", candidate_id=candidate_id)
     return await _post(
-        f"/api/v1/internal/candidates/{candidate_id}/resume",
-        {"file_base64": file_base64, "filename": filename},
+        f"/api/v1/internal/candidates/{candidate_id}/resume-url",
+        {"url": url},
     )
 
 
