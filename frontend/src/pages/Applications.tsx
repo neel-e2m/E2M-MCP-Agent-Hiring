@@ -76,6 +76,7 @@ export function Applications() {
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [promptAnswer, setPromptAnswer] = useState<any | null>(null);
   const [candidateFiles, setCandidateFiles] = useState<any[]>([]);
+  const [showAllSkills, setShowAllSkills] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -124,6 +125,7 @@ export function Applications() {
     setAiRecommendation(null);
     setPromptAnswer(null);
     setCandidateFiles([]);
+    setShowAllSkills(false);
     setDetailLoading(true);
     try {
       const res = await api.get(`/applications/${appId}`);
@@ -192,6 +194,17 @@ export function Applications() {
     } finally {
       setAiRecLoading(false);
     }
+  };
+
+  const renderWithBold = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} style={{ fontWeight: 700 }}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
   };
 
   /* ═════════════════════════════════ RENDER ═════════════════════════════════ */
@@ -332,7 +345,13 @@ export function Applications() {
       )}
 
       {/* ═══════════════════════ DETAIL MODAL ═══════════════════════ */}
-      <Modal isOpen={!!selectedAppId} onClose={closeDetail} title="Application Review" size="xl">
+      <Modal 
+        isOpen={!!selectedAppId} 
+        onClose={closeDetail} 
+        title="Application Review" 
+        size="xl"
+        headerRight={appDetail ? getStatusBadge(appDetail.status) : undefined}
+      >
         {detailLoading ? (
           <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)' }}>Loading application details...</div>
         ) : appDetail && (
@@ -357,9 +376,8 @@ export function Applications() {
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                {getStatusBadge(appDetail.status)}
                 {appDetail.overall_score != null && (
-                  <div style={{ marginTop: '12px' }}>
+                  <div>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>AI Score</span>
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -393,46 +411,28 @@ export function Applications() {
                 </h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {appDetail.candidates?.skills?.length ? (
-                    appDetail.candidates.skills.map((skill: string, i: number) => (
-                      <Badge key={i} variant="info">{skill}</Badge>
-                    ))
+                    <>
+                      {appDetail.candidates.skills.slice(0, showAllSkills ? undefined : 8).map((skill: string, i: number) => (
+                        <Badge key={i} variant="info">{skill}</Badge>
+                      ))}
+                      {appDetail.candidates.skills.length > 8 && (
+                        <button 
+                          onClick={() => setShowAllSkills(!showAllSkills)}
+                          style={{ 
+                            background: 'var(--accent-soft)', border: 'none', padding: '0 10px', 
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)',
+                            cursor: 'pointer', transition: 'background-color 0.2s'
+                          }}
+                        >
+                          {showAllSkills ? 'Show Less' : `+ ${appDetail.candidates.skills.length - 8} More`}
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No skills listed.</span>
                   )}
                 </div>
-
-                {candidateFiles.length > 0 && (
-                  <>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px', marginTop: '24px' }}>
-                      Candidate Files
-                    </h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {candidateFiles.map(file => (
-                        <div key={file.id} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)',
-                          background: 'var(--bg-tertiary)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                            <span style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {file.file_name}
-                            </span>
-                            <Badge variant="info">{file.file_type}</Badge>
-                          </div>
-                          {file.url && (
-                            <a href={file.url} target="_blank" rel="noopener noreferrer" style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '4px',
-                              padding: '4px 10px', borderRadius: 'var(--radius-md)', background: 'var(--border-subtle)',
-                              color: 'var(--accent-primary)', fontSize: '0.8rem', fontWeight: 500, textDecoration: 'none'
-                            }}>
-                              <ExternalLink size={14} /> Open
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Review Panel */}
@@ -463,19 +463,55 @@ export function Applications() {
                   </select>
                 </div>
 
-                <Textarea
-                  label="Reviewer Notes"
-                  placeholder="Private notes about this candidate..."
-                  value={reviewForm.notes}
-                  onChange={e => setReviewForm({ ...reviewForm, notes: e.target.value })}
-                  style={{ minHeight: '100px' }}
-                />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Textarea
+                    label="Reviewer Notes"
+                    placeholder="Private notes about this candidate..."
+                    value={reviewForm.notes}
+                    onChange={e => setReviewForm({ ...reviewForm, notes: e.target.value })}
+                    style={{ flex: 1, minHeight: '130px', resize: 'none' }}
+                  />
+                </div>
 
                 <Button isLoading={reviewLoading} onClick={submitReview} style={{ width: '100%' }}>
                   Save Review
                 </Button>
               </div>
             </div>
+
+            {/* Candidate Files (Full Width) */}
+            {candidateFiles.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Candidate Files
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {candidateFiles.map(file => (
+                    <div key={file.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)',
+                      background: 'var(--bg-tertiary)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                        <span style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {file.file_name}
+                        </span>
+                        <Badge variant="info">{file.file_type}</Badge>
+                      </div>
+                      {file.url && (
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          padding: '4px 10px', borderRadius: 'var(--radius-md)', background: 'var(--border-subtle)',
+                          color: 'var(--accent-primary)', fontSize: '0.8rem', fontWeight: 500, textDecoration: 'none'
+                        }}>
+                          <ExternalLink size={14} /> Open
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Auto-status + Eligibility */}
             {(appDetail.metadata?.auto_status_reason || (appDetail.metadata?.eligibility?.checks?.length ?? 0) > 0) && (
@@ -557,7 +593,7 @@ export function Applications() {
               </div>
               {aiRecommendation && (
                 <p style={{ color: 'var(--text-primary)', fontSize: '0.925rem', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {aiRecommendation}
+                  {renderWithBold(aiRecommendation)}
                 </p>
               )}
             </div>

@@ -8,11 +8,12 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: React.ReactNode;
+  headerRight?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   children: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, headerRight, size = 'md', children }: ModalProps) {
   useEffect(() => {
     if (!isOpen) return;
 
@@ -40,9 +41,12 @@ export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalPr
         {title && (
           <div className={styles.header}>
             <h2 className={styles.title}>{title}</h2>
-            <button className={styles.closeButton} onClick={onClose} aria-label="Close">
-              <X size={18} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              {headerRight}
+              <button className={styles.closeButton} onClick={onClose} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
           </div>
         )}
         {!title && (
