@@ -236,12 +236,12 @@ export function Applications() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Candidate</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>AI Score</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead></TableHead>
+                <TableHead style={{ width: '25%' }}>Candidate</TableHead>
+                <TableHead style={{ width: '20%' }}>Role</TableHead>
+                <TableHead style={{ width: '20%', textAlign: 'center' }}>AI Score</TableHead>
+                <TableHead style={{ width: '15%' }}>Status</TableHead>
+                <TableHead style={{ width: '15%' }}>Date</TableHead>
+                <TableHead style={{ width: '8%', textAlign: 'right' }}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -263,11 +263,30 @@ export function Applications() {
                   return (
                     <TableRow key={app.id} style={{ cursor: 'pointer' }} onClick={() => openDetail(app.id)}>
                       <TableCell>
-                        <div style={{ fontWeight: 500 }}>{app.candidates?.name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{app.candidates?.email}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            background: 'var(--accent-soft)',
+                            color: 'var(--accent-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 600,
+                            fontSize: '0.9rem',
+                            flexShrink: 0
+                          }}>
+                            {app.candidates?.name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{app.candidates?.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{app.candidates?.email}</div>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell style={{ color: 'var(--text-secondary)' }}>{app.roles?.title}</TableCell>
-                      <TableCell>
+                      <TableCell style={{ textAlign: 'center' }}>
                         {sc ? (
                           <div style={{ 
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -276,18 +295,26 @@ export function Applications() {
                           }}>
                             {app.overall_score}
                           </div>
-                        ) : '-'}
+                        ) : <span style={{ color: 'var(--text-muted)' }}>-</span>}
                       </TableCell>
                       <TableCell>{getStatusBadge(app.status)}</TableCell>
                       <TableCell style={{ color: 'var(--text-secondary)' }}>
                         {new Date(app.submitted_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell style={{ textAlign: 'right' }}>
-                        <span style={{ 
-                          color: 'var(--accent-primary)', fontSize: '0.875rem', fontWeight: 500,
-                          display: 'inline-flex', alignItems: 'center', gap: '4px'
+                        <span style={{
+                          color: 'var(--accent-primary)',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'var(--accent-soft)',
+                          padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          transition: 'background-color 0.2s ease',
                         }}>
-                          Review <ExternalLink size={13} />
+                          Review <ExternalLink size={14} />
                         </span>
                       </TableCell>
                     </TableRow>
