@@ -74,9 +74,13 @@ class ResumeService:
         if len(content) > MAX_RESUME_BYTES:
             raise ValidationError(detail="Resume exceeds the 5 MB limit")
 
-        safe_name = (filename or "resume.pdf").strip() or "resume.pdf"
-        if not safe_name.lower().endswith(".pdf"):
-            safe_name = f"{safe_name}.pdf"
+        # Fetch candidate name for clean filename
+        candidate_name = "candidate"
+        candidate_req = self.supabase.table("candidates").select("name").eq("id", candidate_id).single().execute()
+        if candidate_req.data and candidate_req.data.get("name"):
+            candidate_name = candidate_req.data["name"].strip().replace(" ", "_")
+        
+        safe_name = f"{candidate_name}_resume.pdf"
 
         # Ensure the bucket exists and clear any previous resume records for this candidate
         await self.storage.ensure_bucket("resumes")
@@ -144,8 +148,18 @@ class ResumeService:
     async def upload_url(self, candidate_id: str, url: str) -> dict:
         """Download a resume PDF from a public URL and store it."""
         import httpx
+        import re
         from urllib.parse import urlparse
         import os
+        
+        # Auto-convert common share links to direct download links
+        if "drive.google.com" in url:
+            match = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+            if match:
+                file_id = match.group(1)
+                url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        elif "dropbox.com" in url:
+            url = url.replace("?dl=0", "?dl=1")
         
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
@@ -159,20 +173,18 @@ class ResumeService:
             raise ValidationError(detail="Downloaded resume file is empty")
         if len(content) > MAX_RESUME_BYTES:
             raise ValidationError(detail="Resume exceeds the 5 MB limit")
+            
+        # Basic magic byte check to ensure it's a PDF
+        if not content.startswith(b"%PDF-"):
+            raise ValidationError(detail="The downloaded file is not a valid PDF. Make sure the URL points directly to a PDF file, not a webpage.")
 
-        # Try to infer filename from URL or headers
-        filename = "resume.pdf"
-        parsed = urlparse(url)
-        basename = os.path.basename(parsed.path)
-        if basename and basename.lower().endswith(".pdf"):
-            filename = basename
-        elif "content-disposition" in response.headers:
-            cd = response.headers["content-disposition"]
-            if "filename=" in cd:
-                filename = cd.split("filename=")[1].strip('"\'')
-        
-        if not filename.lower().endswith(".pdf"):
-            filename = f"{filename}.pdf"
+        # Fetch candidate name for clean filename
+        candidate_name = "candidate"
+        candidate_req = self.supabase.table("candidates").select("name").eq("id", candidate_id).single().execute()
+        if candidate_req.data and candidate_req.data.get("name"):
+            candidate_name = candidate_req.data["name"].strip().replace(" ", "_")
+            
+        filename = f"{candidate_name}_resume.pdf"
 
         # Ensure the bucket exists and clear any previous resume records for this candidate
         await self.storage.ensure_bucket("resumes")

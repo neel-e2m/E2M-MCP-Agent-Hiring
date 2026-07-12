@@ -75,6 +75,7 @@ export function Applications() {
   const [aiRecLoading, setAiRecLoading] = useState(false);
   const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
   const [promptAnswer, setPromptAnswer] = useState<any | null>(null);
+  const [candidateFiles, setCandidateFiles] = useState<any[]>([]);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -122,6 +123,7 @@ export function Applications() {
     setAppDetail(null);
     setAiRecommendation(null);
     setPromptAnswer(null);
+    setCandidateFiles([]);
     setDetailLoading(true);
     try {
       const res = await api.get(`/applications/${appId}`);
@@ -140,6 +142,12 @@ export function Applications() {
           answers.find((a: any) => a.answer) || null;
         setPromptAnswer(prompt);
       } catch { /* screening data is optional */ }
+      
+      // Surface candidate files (resume)
+      try {
+        const filesRes = await api.get(`/candidates/${res.data.candidate_id}/files`);
+        setCandidateFiles(filesRes.data || []);
+      } catch { /* files data is optional */ }
     } catch {
       toast('Failed to load application details', 'error');
       setSelectedAppId(null);
@@ -365,6 +373,39 @@ export function Applications() {
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No skills listed.</span>
                   )}
                 </div>
+
+                {candidateFiles.length > 0 && (
+                  <>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px', marginTop: '24px' }}>
+                      Candidate Files
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {candidateFiles.map(file => (
+                        <div key={file.id} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)',
+                          background: 'var(--bg-tertiary)'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                            <span style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {file.file_name}
+                            </span>
+                            <Badge variant="info">{file.file_type}</Badge>
+                          </div>
+                          {file.url && (
+                            <a href={file.url} target="_blank" rel="noopener noreferrer" style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '4px',
+                              padding: '4px 10px', borderRadius: 'var(--radius-md)', background: 'var(--border-subtle)',
+                              color: 'var(--accent-primary)', fontSize: '0.8rem', fontWeight: 500, textDecoration: 'none'
+                            }}>
+                              <ExternalLink size={14} /> Open
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Review Panel */}
