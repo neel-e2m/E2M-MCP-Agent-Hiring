@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # ── EmailJS ───────────────────────────────────────────────
     EMAILJS_SERVICE_ID: str = ""
     EMAILJS_TEMPLATE_ID: str = ""
+    EMAILJS_TEMPLATE_ID_SUBMITTED: str = ""
+    EMAILJS_TEMPLATE_ID_STATUS: str = ""
     EMAILJS_PUBLIC_KEY: str = ""
     EMAILJS_PRIVATE_KEY: str = ""
 

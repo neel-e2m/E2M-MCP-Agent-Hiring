@@ -19,19 +19,26 @@ class EmailService:
     def __init__(self):
         self.service_id = settings.EMAILJS_SERVICE_ID
         self.template_id = settings.EMAILJS_TEMPLATE_ID
+        self.template_id_submitted = settings.EMAILJS_TEMPLATE_ID_SUBMITTED
+        self.template_id_status = settings.EMAILJS_TEMPLATE_ID_STATUS
         self.public_key = settings.EMAILJS_PUBLIC_KEY
         self.private_key = settings.EMAILJS_PRIVATE_KEY
         self.api_url = "https://api.emailjs.com/api/v1.0/email/send"
 
-    async def _send_email(self, template_params: dict) -> bool:
+    async def _send_email(self, template_params: dict, override_template_id: str | None = None) -> bool:
         """Internal helper to call EmailJS API."""
         if not self.service_id or not self.public_key:
             logger.warning("emailjs_config_missing", msg="Emails will not be sent.")
             return False
+            
+        target_template_id = override_template_id or self.template_id
+        if not target_template_id:
+            logger.warning("emailjs_template_missing", msg="Template ID is missing, skipping email.")
+            return False
 
         payload = {
             "service_id": self.service_id,
-            "template_id": self.template_id,
+            "template_id": target_template_id,
             "user_id": self.public_key,
             "accessToken": self.private_key,
             "template_params": template_params,
@@ -61,15 +68,24 @@ class EmailService:
         }
         return await self._send_email(params)
 
+    async def send_application_submitted(self, to_email: str, candidate_name: str, role_title: str, status: str) -> bool:
+        """Notify candidate that their application was submitted successfully."""
+        params = {
+            "to_email": to_email,
+            "to_name": candidate_name,
+            "role_title": role_title,
+            "status": status,
+        }
+        return await self._send_email(params, override_template_id=self.template_id_submitted)
+
     async def send_status_update(self, to_email: str, candidate_name: str, status: str) -> bool:
         """Notify candidate of an application status change."""
         params = {
             "to_email": to_email,
             "to_name": candidate_name,
             "status": status,
-            "type": "status_update",
         }
-        return await self._send_email(params)
+        return await self._send_email(params, override_template_id=self.template_id_status)
 
     async def send_interview_schedule(self, to_email: str, details: dict) -> bool:
         """Send interview scheduling details."""

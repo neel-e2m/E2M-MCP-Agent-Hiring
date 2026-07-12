@@ -294,6 +294,21 @@ async def submit_application(req: SubmitApplicationRequest, supabase=Depends(get
     app_service = ApplicationService(supabase)
     # A real resume is now required (uploaded via submit_resume) — no dummy fallback.
     app = await app_service.submit(req.candidate_id, req.role_id)
+    
+    try:
+        from app.services.email_service import EmailService
+        candidate = supabase.table("candidates").select("name, email").eq("id", req.candidate_id).single().execute().data
+        role = supabase.table("roles").select("title").eq("id", req.role_id).single().execute().data
+        if candidate and role:
+            await EmailService().send_application_submitted(
+                to_email=candidate["email"],
+                candidate_name=candidate["name"],
+                role_title=role["title"],
+                status=app["status"]
+            )
+    except Exception as e:
+        logger.error(f"Failed to send submission email: {e}")
+
     return {
         "application_id": app["id"],
         "status": app["status"],
