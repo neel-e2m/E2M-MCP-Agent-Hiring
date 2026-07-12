@@ -322,11 +322,11 @@ export function Invitations() {
                       </TableCell>
                       <TableCell>
                         {isActive ? (
-                          <Button variant="ghost" size="sm" leftIcon={<Ban size={15} />} onClick={() => setRevokeTarget(invite)}>
+                          <Button variant="ghost" size="sm" leftIcon={<Ban size={15} />} onClick={() => setRevokeTarget(invite)} style={{ marginLeft: '-8px' }}>
                             Revoke
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="sm" leftIcon={<Trash2 size={15} />} onClick={() => setDeleteTarget(invite)}>
+                          <Button variant="ghost" size="sm" leftIcon={<Trash2 size={15} />} onClick={() => setDeleteTarget(invite)} style={{ marginLeft: '-8px' }}>
                             Delete
                           </Button>
                         )}
