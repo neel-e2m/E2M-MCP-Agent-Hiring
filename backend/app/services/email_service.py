@@ -47,11 +47,13 @@ class EmailService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(self.api_url, json=payload)
+                if response.status_code != 200:
+                    logger.error("email_send_failed", status_code=response.status_code, details=response.text)
                 response.raise_for_status()
                 logger.info("email_sent_successfully")
                 return True
         except Exception as exc:
-            logger.error("email_send_failed", error=str(exc))
+            logger.error("email_send_exception", error=str(exc))
             return False
 
     async def send_invite(
