@@ -86,6 +86,12 @@ async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get
     # Returning candidate (same email) vs brand-new one.
     existing = supabase.table("candidates").select("id").eq("email", req.email).execute()
     is_new = not existing.data
+    
+    if not is_new:
+        existing_candidate_id = existing.data[0]["id"]
+        app_check = supabase.table("applications").select("id").eq("candidate_id", existing_candidate_id).eq("role_id", token_data["role_id"]).execute()
+        if app_check.data:
+            raise HTTPException(status_code=400, detail="You have already applied for this role. You cannot register multiple times for the same role with the same email.")
 
     # Enforce the invite lifecycle. Revoked / expired always block; the usage limit
     # only blocks a NEW candidate taking a fresh slot (a returning candidate can resume).
@@ -193,11 +199,19 @@ async def submit_resume_url(candidate_id: str, req: ResumeUrlUploadRequest, supa
 @router.post("/eligibility/check")
 async def check_eligibility(req: EligibilityCheckRequest, supabase=Depends(get_supabase)):
     """Evaluate a candidate against the role's HR-defined eligibility rules."""
+    resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
+    if not resume_check.data:
+        raise HTTPException(status_code=400, detail="State Error: You must upload a resume using submit_resume_from_url BEFORE checking eligibility.")
+        
     service = EligibilityService(supabase)
     return await service.evaluate(req.candidate_id, req.role_id)
 
 @router.post("/screening/start")
 async def start_screening(req: StartScreeningRequest, supabase=Depends(get_supabase)):
+    resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
+    if not resume_check.data:
+        raise HTTPException(status_code=400, detail="State Error: You must upload a resume BEFORE starting screening.")
+        
     screening_service = ScreeningService(supabase)
     session = await screening_service.start_session(req.candidate_id, req.role_id)
     return {
