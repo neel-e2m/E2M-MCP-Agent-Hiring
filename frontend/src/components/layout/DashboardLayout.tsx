@@ -32,7 +32,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <img src={logo} alt="E2M" className={styles.logo} />
-          <h2>E2M Agent</h2>
+          <h2>E2M Hiring Agent</h2>
         </div>
         
         <nav className={styles.nav}>

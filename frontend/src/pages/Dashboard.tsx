@@ -183,12 +183,12 @@ export function Dashboard() {
                 <div className={styles.chartEmpty}>No application data yet.</div>
               ) : (
                 <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={pipelineData} layout="vertical" margin={{ top: 4, right: 28, bottom: 0, left: 8 }} barCategoryGap={12}>
+                  <BarChart data={pipelineData} layout="vertical" margin={{ top: 4, right: 28, bottom: 0, left: 8 }} barCategoryGap={16}>
                     <CartesianGrid horizontal={false} stroke="var(--border-subtle)" />
                     <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-secondary)', fontSize: 12.5 }} axisLine={false} tickLine={false} width={92} />
                     <Tooltip cursor={{ fill: 'var(--surface-hover)' }} content={<ChartTooltip />} />
-                    <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 6, 6, 0]} barSize={20}>
+                    <Bar dataKey="value" fill="var(--accent-primary)" radius={[0, 6, 6, 0]} barSize={28}>
                       <LabelList dataKey="value" position="right" fill="var(--text-primary)" fontSize={12} fontWeight={600} />
                     </Bar>
                   </BarChart>
@@ -209,12 +209,12 @@ export function Dashboard() {
                 <div className={styles.chartEmpty}>No screening scores yet.</div>
               ) : (
                 <ResponsiveContainer width="100%" height={210}>
-                  <BarChart data={scoreData} margin={{ top: 16, right: 8, bottom: 0, left: -18 }} barCategoryGap={18}>
+                  <BarChart data={scoreData} margin={{ top: 16, right: 8, bottom: 0, left: -18 }} barCategoryGap={16}>
                     <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
                     <XAxis dataKey="bucket" tick={{ fill: 'var(--text-secondary)', fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip cursor={{ fill: 'var(--surface-hover)' }} content={<ChartTooltip />} />
-                    <Bar dataKey="count" fill="var(--accent-primary)" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    <Bar dataKey="count" fill="var(--accent-primary)" radius={[6, 6, 0, 0]} maxBarSize={56}>
                       {scoreData.map((_, i) => <Cell key={i} fill="var(--accent-primary)" />)}
                     </Bar>
                   </BarChart>
@@ -240,12 +240,12 @@ export function Dashboard() {
               </div>
             ) : (
               <div className={styles.activityList}>
-                {activities.map((item) => {
+                {activities.slice(0, 8).map((item) => {
                   const IconComp = activityIconMap[item.type] || Activity;
                   return (
                     <div key={item.id} className={styles.activityItem}>
                       <div className={styles.activityIcon}>
-                        <IconComp size={15} />
+                        <IconComp size={16} strokeWidth={2.2} />
                       </div>
                       <div className={styles.activityContent}>
                         <p className={styles.activityMessage}>{item.message}</p>

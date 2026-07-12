@@ -97,12 +97,11 @@ class AnalyticsService:
 
     async def get_recent_activity(self, limit: int = 10) -> list[dict]:
         """Fetch a unified timeline of recent events."""
-        # Simplification: we'll just fetch recent applications and format them as activity
         result = (
             self.supabase.table("applications")
-            .select("id, status, submitted_at, candidates(name), roles(title)")
+            .select("id, status, submitted_at, reviewed_at, candidates(name), roles(title)")
             .order("submitted_at", desc=True)
-            .limit(limit)
+            .limit(limit * 2)
             .execute()
         )
         
@@ -110,11 +109,23 @@ class AnalyticsService:
         for app in (result.data or []):
             name = app.get("candidates", {}).get("name", "Unknown")
             role = app.get("roles", {}).get("title", "Unknown role")
-            activity.append({
-                "id": app["id"],
-                "type": "application_submitted",
-                "message": f"{name} applied for {role}",
-                "timestamp": app["submitted_at"],
-            })
             
-        return activity
+            if app.get("submitted_at"):
+                activity.append({
+                    "id": f"sub_{app['id']}",
+                    "type": "application",
+                    "message": f"{name} applied for {role}",
+                    "timestamp": app["submitted_at"],
+                })
+                
+            if app.get("reviewed_at") and app.get("status") != "submitted":
+                status = app["status"]
+                activity.append({
+                    "id": f"rev_{app['id']}",
+                    "type": status,
+                    "message": f"{name}'s application was {status.replace('_', ' ')}",
+                    "timestamp": app["reviewed_at"],
+                })
+                
+        activity.sort(key=lambda x: x["timestamp"], reverse=True)
+        return activity[:limit]

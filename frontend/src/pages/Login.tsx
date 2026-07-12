@@ -41,11 +41,10 @@ export function Login() {
             src={logo}
             alt="E2M"
             style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '14px',
+              width: '65px',
+              height: '65px',
+              borderRadius: '0px',
               margin: '0 auto 18px',
-              boxShadow: 'var(--shadow-md)',
             }}
           />
           <CardTitle style={{ fontSize: '1.5rem', letterSpacing: '-0.03em' }}>Welcome to E2M</CardTitle>
