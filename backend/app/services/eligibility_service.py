@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from supabase import Client
 
 from app.core.logging_config import get_logger
+from app.services.llm_service import LLMService
 
 logger = get_logger(__name__)
 
@@ -63,6 +64,30 @@ class EligibilityService:
         )
         rules = ((role or {}).get("screening_config") or {}).get("eligibility_rules") or {}
         result = self.evaluate_profile(candidate or {}, rules)
+        
+        custom_rules = rules.get("custom_rules")
+        if custom_rules and result.get("eligible"):
+            resume_text = (candidate or {}).get("resume_text", "")
+            if resume_text:
+                llm = LLMService()
+                custom_eval = await llm.evaluate_custom_eligibility(resume_text, custom_rules)
+                if not custom_eval.get("passed", True):
+                    result["eligible"] = False
+                    result["reasons"].append(f"Custom rule failed: {custom_eval.get('reason', 'Does not meet custom requirements.')}")
+                    result["checks"].append({
+                        "rule": "custom_rules",
+                        "required": custom_rules,
+                        "actual": custom_eval.get("reason", "Failed"),
+                        "passed": False
+                    })
+                else:
+                    result["checks"].append({
+                        "rule": "custom_rules",
+                        "required": custom_rules,
+                        "actual": "Passed",
+                        "passed": True
+                    })
+        
         logger.info("eligibility_evaluated", candidate_id=candidate_id, role_id=role_id, eligible=result["eligible"])
         return result
 

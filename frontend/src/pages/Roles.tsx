@@ -6,7 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Modal } from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
-import { Plus, Settings, Power, MessageSquare, Trash2, ShieldCheck, Sparkles, Target, AlertTriangle } from 'lucide-react';
+import { Plus, Settings, Power, MessageSquare, Trash2, ShieldCheck, Target, AlertTriangle } from 'lucide-react';
 import api from '../lib/api';
 
 /* ─── shared select styling ─── */
@@ -67,23 +67,22 @@ interface RoleForm {
   department: string;
   location: string;
   employment_type: string;
-  // screening_config
   min_experience_years: string;
   min_education: string;
   required_skills: string;
-  prompt_question: string;
+  custom_rules: string;
   auto_shortlist_enabled: boolean;
   shortlist_threshold: string;
 }
 
 const EMPTY_FORM: RoleForm = {
   title: '', description: '', requirements: '', department: '', location: '', employment_type: 'full_time',
-  min_experience_years: '', min_education: 'any', required_skills: '',
-  prompt_question: '', auto_shortlist_enabled: false, shortlist_threshold: '7',
+  min_experience_years: '', min_education: 'any', required_skills: '', custom_rules: '',
+  auto_shortlist_enabled: false, shortlist_threshold: '7',
 };
 
 /* ─── constants ─── */
-const CATEGORIES = ['general', 'technical', 'behavioral', 'mcp', 'llm'] as const;
+const CATEGORIES = ['general', 'technical', 'behavioral', 'mcp', 'llm', 'custom'] as const;
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
 const difficultyBadgeVariant: Record<string, 'success' | 'warning' | 'danger'> = {
@@ -100,6 +99,7 @@ function buildScreeningConfig(f: RoleForm): any {
   if (f.min_education && f.min_education !== 'any') rules.min_education = f.min_education;
   const skills = f.required_skills.split(',').map(s => s.trim()).filter(Boolean);
   if (skills.length) rules.required_skills = skills;
+  if (f.custom_rules.trim()) rules.custom_rules = f.custom_rules.trim();
 
   const config: any = {
     eligibility_rules: rules,
@@ -108,7 +108,6 @@ function buildScreeningConfig(f: RoleForm): any {
       shortlist_threshold: parseFloat(f.shortlist_threshold) || 7,
     },
   };
-  if (f.prompt_question.trim()) config.prompt_question = f.prompt_question.trim();
   return config;
 }
 
@@ -120,7 +119,7 @@ function configToForm(sc: any): Partial<RoleForm> {
     min_experience_years: rules.min_experience_years != null ? String(rules.min_experience_years) : '',
     min_education: rules.min_education || 'any',
     required_skills: Array.isArray(rules.required_skills) ? rules.required_skills.join(', ') : '',
-    prompt_question: sc?.prompt_question || '',
+    custom_rules: rules.custom_rules || '',
     auto_shortlist_enabled: scoring.auto_shortlist_enabled ?? false,
     shortlist_threshold: scoring.shortlist_threshold != null ? String(scoring.shortlist_threshold) : '7',
   };
@@ -147,87 +146,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
-/* ─── Reusable screening-config fields (eligibility + prompt + scoring) ─── */
-function ConfigFields({ v, set }: { v: RoleForm; set: (patch: Partial<RoleForm>) => void }) {
-  const sectionTitle: React.CSSProperties = { fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' };
-  const box: React.CSSProperties = { padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Eligibility */}
-      <div style={box}>
-        <div style={sectionTitle}><ShieldCheck size={16} /> Eligibility Rules</div>
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
-          Checked automatically after the candidate submits their resume. Candidates who fail cannot be screened.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-          <Input
-            label="Min. experience (years)"
-            type="number" min="0" step="0.5"
-            value={v.min_experience_years}
-            onChange={e => set({ min_experience_years: e.target.value })}
-            placeholder="e.g. 1"
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Min. education</label>
-            <select value={v.min_education} onChange={e => set({ min_education: e.target.value })} style={selectStyle}>
-              {EDUCATION_OPTIONS.map(o => <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ marginTop: '14px' }}>
-          <Input
-            label="Required skills (comma-separated)"
-            value={v.required_skills}
-            onChange={e => set({ required_skills: e.target.value })}
-            placeholder="e.g. Python, LLMs, Prompt Engineering"
-          />
-        </div>
-      </div>
-
-      {/* Prompt question */}
-      <div style={box}>
-        <div style={sectionTitle}><Sparkles size={16} /> Screening Prompt Question</div>
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
-          A project requirement. The candidate must paste the exact AI prompt they'd use to build it (their own work).
-        </p>
-        <Textarea
-          value={v.prompt_question}
-          onChange={e => set({ prompt_question: e.target.value })}
-          placeholder="e.g. Design a multi-tenant RAG service with rate-limiting. Paste the exact prompt you would give an AI assistant to build it."
-          style={{ minHeight: '90px' }}
-        />
-      </div>
-
-      {/* Scoring */}
-      <div style={box}>
-        <div style={sectionTitle}><Target size={16} /> Auto-Shortlisting</div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-          <div>
-            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Auto shortlist / reject on score</p>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {v.auto_shortlist_enabled
-                ? 'Applications at or above the threshold are shortlisted; below are rejected.'
-                : 'Off — all applications stay “submitted” for manual review.'}
-            </p>
-          </div>
-          <Toggle checked={v.auto_shortlist_enabled} onChange={val => set({ auto_shortlist_enabled: val })} />
-        </div>
-        {v.auto_shortlist_enabled && (
-          <div style={{ marginTop: '14px', maxWidth: '220px' }}>
-            <Input
-              label="Shortlist threshold (0–10)"
-              type="number" min="0" max="10" step="0.5"
-              value={v.shortlist_threshold}
-              onChange={e => set({ shortlist_threshold: e.target.value })}
-            />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ─── component ─── */
 export function Roles() {
   const { toast } = useToast();
@@ -240,6 +158,9 @@ export function Roles() {
   const [showForm, setShowForm] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formData, setFormData] = useState<RoleForm>(EMPTY_FORM);
+  const [createQuestions, setCreateQuestions] = useState<any[]>([]);
+  const [newCreateQuestion, setNewCreateQuestion] = useState({ question: '', category: 'general', customCategory: '', difficulty: 'medium' });
+  const [showCreateCustomRule, setShowCreateCustomRule] = useState(false);
 
   /* ── manage modal state ── */
   const [manageRole, setManageRole] = useState<Role | null>(null);
@@ -248,11 +169,12 @@ export function Roles() {
   const [toggleLoading, setToggleLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showManageCustomRule, setShowManageCustomRule] = useState(false);
 
   /* ── questions state ── */
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionsLoading, setQuestionsLoading] = useState(false);
-  const [newQuestion, setNewQuestion] = useState({ question: '', category: 'general', difficulty: 'medium' });
+  const [newQuestion, setNewQuestion] = useState({ question: '', category: 'general', customCategory: '', difficulty: 'medium' });
   const [addQuestionLoading, setAddQuestionLoading] = useState(false);
 
   /* ═════════════════════════════════ API ═════════════════════════════════ */
@@ -298,16 +220,38 @@ export function Roles() {
       if (formData.requirements.trim()) {
         payload.requirements = formData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean);
       }
-      await api.post('/roles/', payload);
+      
+      const roleResp = await api.post('/roles/', payload);
+      const newRole = roleResp.data;
+
+      // Create questions if any
+      if (createQuestions.length > 0) {
+        for (const q of createQuestions) {
+          await api.post(`/roles/${newRole.id}/questions`, q);
+        }
+      }
+
       toast('Role created successfully', 'success');
       setShowForm(false);
       setFormData(EMPTY_FORM);
+      setCreateQuestions([]);
       await fetchRoles();
     } catch {
       toast('Failed to create role', 'error');
     } finally {
       setSubmitLoading(false);
     }
+  };
+
+  const handleAddCreateQuestion = () => {
+    if (!newCreateQuestion.question.trim()) return;
+    const finalCategory = newCreateQuestion.category === 'custom' ? (newCreateQuestion.customCategory.trim() || 'custom') : newCreateQuestion.category;
+    setCreateQuestions([...createQuestions, { ...newCreateQuestion, category: finalCategory, id: Date.now().toString() }]);
+    setNewCreateQuestion({ question: '', category: 'general', customCategory: '', difficulty: 'medium' });
+  };
+
+  const handleRemoveCreateQuestion = (id: string) => {
+    setCreateQuestions(createQuestions.filter(q => q.id !== id));
   };
 
   /* ── open manage ── */
@@ -324,7 +268,9 @@ export function Roles() {
       employment_type: role.employment_type || 'full_time',
       ...configToForm(role.screening_config),
     });
-    setNewQuestion({ question: '', category: 'general', difficulty: 'medium' });
+    const parsedConfig = configToForm(role.screening_config);
+    setShowManageCustomRule(!!parsedConfig.custom_rules);
+    setNewQuestion({ question: '', category: 'general', customCategory: '', difficulty: 'medium' });
     fetchQuestions(role.id);
   };
 
@@ -404,13 +350,14 @@ export function Roles() {
     if (!manageRole || !newQuestion.question.trim()) return;
     setAddQuestionLoading(true);
     try {
+      const finalCategory = newQuestion.category === 'custom' ? (newQuestion.customCategory.trim() || 'custom') : newQuestion.category;
       await api.post(`/roles/${manageRole.id}/questions`, {
         question: newQuestion.question,
-        category: newQuestion.category,
+        category: finalCategory,
         difficulty: newQuestion.difficulty,
       });
       toast('Question added', 'success');
-      setNewQuestion({ question: '', category: 'general', difficulty: 'medium' });
+      setNewQuestion({ question: '', category: 'general', customCategory: '', difficulty: 'medium' });
       await fetchQuestions(manageRole.id);
     } catch {
       toast('Failed to add question', 'error');
@@ -505,7 +452,163 @@ export function Roles() {
                 placeholder="Role description..."
               />
 
-              <ConfigFields v={formData} set={patch => setFormData({ ...formData, ...patch })} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <ShieldCheck size={16} /> Eligibility Rules
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                    Checked automatically after the candidate submits their resume. Candidates who fail cannot be screened.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <Input
+                      label="Min. experience (years)"
+                      type="number" min="0" step="0.5"
+                      value={formData.min_experience_years}
+                      onChange={e => setFormData({ ...formData, min_experience_years: e.target.value })}
+                      placeholder="e.g. 1"
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                      <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Min. education</label>
+                      <select value={formData.min_education} onChange={e => setFormData({ ...formData, min_education: e.target.value })} style={selectStyle}>
+                        {EDUCATION_OPTIONS.map(o => <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '14px' }}>
+                    <Input
+                      label="Required skills (comma-separated)"
+                      value={formData.required_skills}
+                      onChange={e => setFormData({ ...formData, required_skills: e.target.value })}
+                      placeholder="e.g. Python, LLMs, Prompt Engineering"
+                    />
+                  </div>
+                  {(showCreateCustomRule || formData.custom_rules) ? (
+                    <div style={{ marginTop: '14px' }}>
+                      <Input
+                        label="Custom eligibility rules"
+                        value={formData.custom_rules}
+                        onChange={e => setFormData({ ...formData, custom_rules: e.target.value })}
+                        placeholder="e.g. Must be located in Ahmedabad"
+                      />
+                    </div>
+                  ) : (
+                    <Button variant="ghost" size="sm" type="button" onClick={() => setShowCreateCustomRule(true)} style={{ marginTop: '14px', color: 'var(--accent-primary)' }}>
+                      + Custom rule
+                    </Button>
+                  )}
+                </div>
+
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                    <MessageSquare size={16} /> Screening Questions
+                  </div>
+                  {createQuestions.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                      {createQuestions.map((q, idx) => (
+                        <div key={q.id} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 14px',
+                          borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+                        }}>
+                          <span style={{
+                            flexShrink: 0, width: '24px', height: '24px', borderRadius: 'var(--radius-full)',
+                            background: 'var(--accent-soft)', color: 'var(--accent-primary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700,
+                          }}>
+                            {idx + 1}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '6px' }}>{q.question}</p>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <Badge variant={q.category === 'prompt' ? 'success' : 'info'}>{q.category}</Badge>
+                              <Badge variant={difficultyBadgeVariant[q.difficulty] || 'default'}>{q.difficulty}</Badge>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCreateQuestion(q.id)}
+                            style={{
+                              flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)',
+                              cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', transition: 'color 0.2s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{
+                    padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)',
+                    border: '1px dashed var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '12px',
+                  }}>
+                    <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Add New Question</p>
+                    <Textarea
+                      placeholder="Enter your screening question..."
+                      value={newCreateQuestion.question}
+                      onChange={e => setNewCreateQuestion({ ...newCreateQuestion, question: e.target.value })}
+                      style={{ minHeight: '72px' }}
+                    />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <select value={newCreateQuestion.category} onChange={e => setNewCreateQuestion({ ...newCreateQuestion, category: e.target.value })} style={{...selectStyle, width: newCreateQuestion.category === 'custom' ? '110px' : '100%'}}>
+                            {CATEGORIES.map(c => <option key={c} value={c} style={optionStyle}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                          </select>
+                          {newCreateQuestion.category === 'custom' && (
+                            <input
+                              type="text"
+                              placeholder="New Category..."
+                              value={newCreateQuestion.customCategory}
+                              onChange={e => setNewCreateQuestion({ ...newCreateQuestion, customCategory: e.target.value })}
+                              style={{ ...selectStyle, flex: 1 }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Difficulty</label>
+                        <select value={newCreateQuestion.difficulty} onChange={e => setNewCreateQuestion({ ...newCreateQuestion, difficulty: e.target.value })} style={selectStyle}>
+                          {DIFFICULTIES.map(d => <option key={d} value={d} style={optionStyle}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                        </select>
+                      </div>
+                      <Button type="button" size="sm" leftIcon={<Plus size={14} />} onClick={handleAddCreateQuestion} disabled={!newCreateQuestion.question.trim()}>
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Target size={16} /> Auto-Shortlisting
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                    <div>
+                      <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Auto shortlist / reject on score</p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {formData.auto_shortlist_enabled
+                          ? 'Applications at or above the threshold are shortlisted; below are rejected.'
+                          : 'Off — all applications stay “submitted” for manual review.'}
+                      </p>
+                    </div>
+                    <Toggle checked={formData.auto_shortlist_enabled} onChange={val => setFormData({ ...formData, auto_shortlist_enabled: val })} />
+                  </div>
+                  {formData.auto_shortlist_enabled && (
+                    <div style={{ marginTop: '14px', maxWidth: '220px' }}>
+                      <Input
+                        label="Shortlist threshold (0–10)"
+                        type="number" min="0" max="10" step="0.5"
+                        value={formData.shortlist_threshold}
+                        onChange={e => setFormData({ ...formData, shortlist_threshold: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
                 <Button variant="ghost" type="button" onClick={() => setShowForm(false)}>Cancel</Button>
@@ -616,9 +719,156 @@ export function Roles() {
                 <Input label="Requirements (comma-separated)" value={editData.requirements} onChange={e => setEditData({ ...editData, requirements: e.target.value })} placeholder="e.g. Python, LLM experience" />
                 <Textarea label="Description" value={editData.description} onChange={e => setEditData({ ...editData, description: e.target.value })} placeholder="Role description..." />
 
-                <ConfigFields v={editData} set={patch => setEditData({ ...editData, ...patch })} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <ShieldCheck size={16} /> Eligibility Rules
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                      <Input
+                        label="Min. experience (years)"
+                        type="number" min="0" step="0.5"
+                        value={editData.min_experience_years}
+                        onChange={e => setEditData({ ...editData, min_experience_years: e.target.value })}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                        <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Min. education</label>
+                        <select value={editData.min_education} onChange={e => setEditData({ ...editData, min_education: e.target.value })} style={selectStyle}>
+                          {EDUCATION_OPTIONS.map(o => <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '14px' }}>
+                      <Input
+                        label="Required skills (comma-separated)"
+                        value={editData.required_skills}
+                        onChange={e => setEditData({ ...editData, required_skills: e.target.value })}
+                      />
+                    </div>
+                    {(showManageCustomRule || editData.custom_rules) ? (
+                      <div style={{ marginTop: '14px' }}>
+                        <Input
+                          label="Custom eligibility rules"
+                          value={editData.custom_rules}
+                          onChange={e => setEditData({ ...editData, custom_rules: e.target.value })}
+                          placeholder="e.g. Must be located in Ahmedabad"
+                        />
+                      </div>
+                    ) : (
+                      <Button variant="ghost" size="sm" type="button" onClick={() => setShowManageCustomRule(true)} style={{ marginTop: '14px', color: 'var(--accent-primary)' }}>
+                        + Custom rule
+                      </Button>
+                    )}
+                  </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                  <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                      <MessageSquare size={16} /> Screening Questions
+                    </div>
+
+                    {questionsLoading ? (
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading questions...</p>
+                    ) : questions.length === 0 ? (
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '16px' }}>No screening questions yet. Add one below.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                        {questions.map((q, idx) => (
+                          <div key={q.id} style={{
+                            display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 14px',
+                            borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+                          }}>
+                            <span style={{
+                              flexShrink: 0, width: '24px', height: '24px', borderRadius: 'var(--radius-full)',
+                              background: 'var(--accent-soft)', color: 'var(--accent-primary)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700,
+                            }}>
+                              {idx + 1}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '6px' }}>{q.question}</p>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <Badge variant={q.category === 'prompt' ? 'success' : 'info'}>{q.category}</Badge>
+                                <Badge variant={difficultyBadgeVariant[q.difficulty] || 'default'}>{q.difficulty}</Badge>
+                              </div>
+                            </div>
+                            {q.category !== 'prompt' && (
+                              <button
+                                onClick={() => handleDeleteQuestion(q.id)}
+                                style={{
+                                  flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)',
+                                  cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', transition: 'color 0.2s',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
+                                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                                title="Delete question"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{
+                      padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-secondary)',
+                      border: '1px dashed var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '12px',
+                    }}>
+                      <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Add New Question</p>
+                      <Textarea
+                        placeholder="Enter your screening question..."
+                        value={newQuestion.question}
+                        onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                        style={{ minHeight: '72px' }}
+                      />
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
+                          <select value={newQuestion.category} onChange={e => setNewQuestion({ ...newQuestion, category: e.target.value })} style={selectStyle}>
+                            {CATEGORIES.map(c => <option key={c} value={c} style={optionStyle}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Difficulty</label>
+                          <select value={newQuestion.difficulty} onChange={e => setNewQuestion({ ...newQuestion, difficulty: e.target.value })} style={selectStyle}>
+                            {DIFFICULTIES.map(d => <option key={d} value={d} style={optionStyle}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                          </select>
+                        </div>
+                        <Button size="sm" leftIcon={<Plus size={14} />} isLoading={addQuestionLoading} onClick={handleAddQuestion} disabled={!newQuestion.question.trim()}>
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <Target size={16} /> Auto-Shortlisting
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+                      <div>
+                        <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Auto shortlist / reject on score</p>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {editData.auto_shortlist_enabled
+                            ? 'Applications at or above the threshold are shortlisted; below are rejected.'
+                            : 'Off — all applications stay “submitted” for manual review.'}
+                        </p>
+                      </div>
+                      <Toggle checked={editData.auto_shortlist_enabled} onChange={val => setEditData({ ...editData, auto_shortlist_enabled: val })} />
+                    </div>
+                    {editData.auto_shortlist_enabled && (
+                      <div style={{ marginTop: '14px', maxWidth: '220px' }}>
+                        <Input
+                          label="Shortlist threshold (0–10)"
+                          type="number" min="0" max="10" step="0.5"
+                          value={editData.shortlist_threshold}
+                          onChange={e => setEditData({ ...editData, shortlist_threshold: e.target.value })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                   <Button isLoading={editLoading} onClick={handleEdit}>Save Changes</Button>
                 </div>
               </div>
@@ -626,7 +876,7 @@ export function Roles() {
 
             <div style={{ borderTop: '1px solid var(--glass-border)' }} />
 
-            {/* ── Section 2: Toggle Active ── */}
+            {/* ── Section: Toggle Active ── */}
             <section>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -648,91 +898,8 @@ export function Roles() {
 
             <div style={{ borderTop: '1px solid var(--glass-border)' }} />
 
-            {/* ── Section 3: Screening Questions ── */}
-            <section>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MessageSquare size={16} /> Screening Questions
-              </h3>
+            {/* ── Section: Danger Zone ── */}
 
-              {questionsLoading ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading questions...</p>
-              ) : questions.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '16px' }}>No screening questions yet. Set a prompt question above, or add one below.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-                  {questions.map((q, idx) => (
-                    <div key={q.id} style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 14px',
-                      borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)',
-                    }}>
-                      <span style={{
-                        flexShrink: 0, width: '24px', height: '24px', borderRadius: 'var(--radius-full)',
-                        background: 'var(--accent-soft)', color: 'var(--accent-primary)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700,
-                      }}>
-                        {idx + 1}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ color: 'var(--text-primary)', fontSize: '0.875rem', marginBottom: '6px' }}>{q.question}</p>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <Badge variant={q.category === 'prompt' ? 'success' : 'info'}>{q.category}</Badge>
-                          <Badge variant={difficultyBadgeVariant[q.difficulty] || 'default'}>{q.difficulty}</Badge>
-                        </div>
-                      </div>
-                      {q.category !== 'prompt' && (
-                        <button
-                          onClick={() => handleDeleteQuestion(q.id)}
-                          style={{
-                            flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', transition: 'color 0.2s',
-                          }}
-                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-                          title="Delete question"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add Question Form */}
-              <div style={{
-                padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)',
-                border: '1px dashed var(--glass-border)', display: 'flex', flexDirection: 'column', gap: '12px',
-              }}>
-                <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Add New Question</p>
-                <Textarea
-                  placeholder="Enter your screening question..."
-                  value={newQuestion.question}
-                  onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
-                  style={{ minHeight: '72px' }}
-                />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</label>
-                    <select value={newQuestion.category} onChange={e => setNewQuestion({ ...newQuestion, category: e.target.value })} style={selectStyle}>
-                      {CATEGORIES.map(c => <option key={c} value={c} style={optionStyle}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Difficulty</label>
-                    <select value={newQuestion.difficulty} onChange={e => setNewQuestion({ ...newQuestion, difficulty: e.target.value })} style={selectStyle}>
-                      {DIFFICULTIES.map(d => <option key={d} value={d} style={optionStyle}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
-                    </select>
-                  </div>
-                  <Button size="sm" leftIcon={<Plus size={14} />} isLoading={addQuestionLoading} onClick={handleAddQuestion} disabled={!newQuestion.question.trim()}>
-                    Add
-                  </Button>
-                </div>
-              </div>
-            </section>
-
-            <div style={{ borderTop: '1px solid var(--glass-border)' }} />
-
-            {/* ── Section 4: Danger Zone ── */}
             <section>
               <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--danger)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertTriangle size={16} /> Danger Zone

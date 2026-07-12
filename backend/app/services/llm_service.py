@@ -55,6 +55,8 @@ class LLMService:
         if json_mode:
             if "prompt-engineering" in system_prompt.lower() or "submitted prompt" in system_prompt.lower():
                 return '{"score": 7.0, "feedback": "Reasonable prompt with a clear goal.", "strengths": ["Clear objective"], "improvements": ["Specify constraints and edge cases"], "ai_generated_likelihood": 0.2}'
+            elif "evaluate if the candidate meets" in system_prompt.lower() or "custom rule" in system_prompt.lower():
+                return '{"passed": true, "reason": "Mock pass for custom rule."}'
             elif "evaluate" in system_prompt.lower():
                 return '{"score": 7.5, "feedback": "Good answer, covers the basics.", "strengths": ["Clear"], "improvements": ["Needs more detail"]}'
             elif "resume" in system_prompt.lower():
@@ -185,3 +187,29 @@ class LLMService:
         except json.JSONDecodeError:
             logger.error("llm_resume_parse_failed", response=response_text)
             return {}
+
+    async def evaluate_custom_eligibility(self, resume_text: str, custom_rules: str) -> dict[str, Any]:
+        """Evaluate if a candidate's resume meets custom, natural-language eligibility rules."""
+        system_prompt = f"""
+        You are an HR eligibility screening assistant.
+        You must evaluate if the candidate meets the following CUSTOM rule(s):
+        "{custom_rules}"
+        
+        Analyze the provided resume. Does the candidate meet the rule?
+        Return ONLY a JSON object:
+        {{
+            "passed": <boolean>,
+            "reason": "<short 1-sentence explanation of why they passed or failed based on the resume>"
+        }}
+        If the resume does not contain enough information to explicitly pass the rule, then they fail.
+        """
+        response_text = await self._call_llm(system_prompt, f"Candidate Resume:\n{resume_text}", json_mode=True)
+        try:
+            data = json.loads(response_text)
+            return {
+                "passed": bool(data.get("passed", False)),
+                "reason": data.get("reason", "No reason provided.")
+            }
+        except json.JSONDecodeError:
+            logger.error("llm_custom_rule_eval_failed", response=response_text)
+            return {"passed": False, "reason": "Failed to parse AI evaluation."}
