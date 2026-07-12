@@ -88,7 +88,6 @@ const PER_PAGE = 20;
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'in_progress', label: 'In Progress' },
   { value: 'complete', label: 'Complete' },
 ];
 
@@ -164,6 +163,8 @@ function ProfileTab({ candidate }: { candidate: Candidate }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+
+
       {/* Summary */}
       {candidate.summary && (
         <section>
@@ -251,22 +252,7 @@ function ProfileTab({ candidate }: { candidate: Candidate }) {
         </section>
       )}
 
-      {/* Contact Info */}
-      <section>
-        <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '10px' }}>Contact</h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '0.925rem' }}>
-            <Mail size={15} style={{ color: 'var(--text-muted)' }} />
-            {candidate.email}
-          </div>
-          {candidate.phone && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontSize: '0.925rem' }}>
-              <Phone size={15} style={{ color: 'var(--text-muted)' }} />
-              {candidate.phone}
-            </div>
-          )}
-        </div>
-      </section>
+
 
       {/* Empty state */}
       {!candidate.summary && skills.length === 0 && experience.length === 0 && education.length === 0 && (
@@ -318,7 +304,6 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {sessions.map(session => {
-        const isExpanded = expandedSession === session.id;
         const answers = session.screening_answers ?? [];
         const sc = session.score != null ? scoreColor(session.score) : null;
 
@@ -330,8 +315,7 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
             overflow: 'hidden',
           }}>
             {/* Session header */}
-            <button
-              onClick={() => setExpandedSession(isExpanded ? null : session.id)}
+            <div
               style={{
                 width: '100%',
                 display: 'flex',
@@ -340,13 +324,11 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
                 padding: '16px',
                 background: 'none',
                 border: 'none',
-                cursor: 'pointer',
                 color: 'var(--text-primary)',
                 fontFamily: 'inherit',
                 textAlign: 'left',
               }}
             >
-              {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <Badge variant={session.status === 'completed' ? 'success' : session.status === 'in_progress' ? 'warning' : 'default'}>
                   {session.status}
@@ -372,12 +354,12 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
                 </span>
               </div>
               <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                {formatDate(session.created_at)}
+                {(session as any).started_at || session.created_at ? formatDate((session as any).started_at || session.created_at) : 'N/A'}
               </span>
-            </button>
+            </div>
 
-            {/* Expanded answers */}
-            {isExpanded && answers.length > 0 && (
+            {/* Answers (Always Expanded) */}
+            {answers.length > 0 && (
               <div style={{
                 borderTop: '1px solid var(--glass-border)',
                 padding: '16px',
@@ -430,7 +412,7 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
                   })}
               </div>
             )}
-            {isExpanded && answers.length === 0 && (
+            {answers.length === 0 && (
               <div style={{ borderTop: '1px solid var(--glass-border)', padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 No answers recorded for this session.
               </div>
@@ -610,8 +592,16 @@ function ActivityTab({ candidateId }: { candidateId: string }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {sorted.map(entry => {
           const ts = entry.timestamp || entry.created_at;
-          const actionLabel = entry.action || entry.type || 'Event';
-          const detailText = entry.details || entry.message || '';
+          const actionLabel = entry.action || entry.type || (entry as any).tool_name || 'System Event';
+          let detailText = entry.details || entry.message || '';
+          
+          if (!detailText && (entry as any).request_payload) {
+            try {
+              detailText = JSON.stringify((entry as any).request_payload).substring(0, 100) + '...';
+            } catch {
+              detailText = 'Payload provided';
+            }
+          }
 
           return (
             <div key={entry.id} style={{ position: 'relative' }}>
@@ -663,7 +653,7 @@ function CandidateDetailModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'screening' | 'files' | 'activity'>('profile');
 
   // Reset to profile tab when opening a new candidate
   useEffect(() => {
@@ -672,8 +662,26 @@ function CandidateDetailModal({
 
   if (!candidate) return null;
 
+  const titleNode = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+      <span>{candidate.name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Mail size={15} style={{ color: 'var(--text-secondary)' }} />
+          {candidate.email}
+        </div>
+        {candidate.phone && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Phone size={15} style={{ color: 'var(--text-secondary)' }} />
+            {candidate.phone}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={candidate.name} size="xl">
+    <Modal isOpen={!!candidate} onClose={onClose} title={titleNode} size="xl">
       <Tabs tabs={MODAL_TABS} activeTab={activeTab} onChange={setActiveTab} />
       <div style={{ marginTop: '20px' }}>
         {activeTab === 'profile' && <ProfileTab candidate={candidate} />}
@@ -800,11 +808,12 @@ export function Candidates() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Registered</TableHead>
-                <TableHead></TableHead>
+                <TableHead style={{ width: '20%' }}>Candidate</TableHead>
+                <TableHead style={{ width: '24%' }}>Email</TableHead>
+                <TableHead style={{ width: '14%' }}>Phone</TableHead>
+                <TableHead style={{ width: '12%' }}>Status</TableHead>
+                <TableHead style={{ width: '12%' }}>Registered</TableHead>
+                <TableHead style={{ width: '14%', textAlign: 'right' }}></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -816,7 +825,7 @@ export function Candidates() {
                 </TableRow>
               ) : candidates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
+                  <TableCell colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px 0' }}>
                     No candidates found.
                   </TableCell>
                 </TableRow>
@@ -827,8 +836,28 @@ export function Candidates() {
                     style={{ cursor: 'pointer' }}
                     onClick={() => openCandidateDetail(candidate)}
                   >
-                    <TableCell style={{ fontWeight: 500 }}>{candidate.name}</TableCell>
+                    <TableCell>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: 'var(--accent-soft)',
+                          color: 'var(--accent-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 600,
+                          fontSize: '0.9rem',
+                          flexShrink: 0
+                        }}>
+                          {candidate.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{candidate.name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell style={{ color: 'var(--text-secondary)' }}>{candidate.email}</TableCell>
+                    <TableCell style={{ color: 'var(--text-secondary)' }}>{candidate.phone || '-'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(candidate.profile_status)}>
                         {candidate.profile_status}
@@ -842,14 +871,18 @@ export function Candidates() {
                         style={{
                           color: 'var(--accent-primary)',
                           fontSize: '0.875rem',
-                          fontWeight: 500,
+                          fontWeight: 600,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          background: 'var(--accent-soft)',
+                          padding: '6px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          transition: 'background-color 0.2s ease',
                         }}
                       >
                         View Profile
-                        <ExternalLink size={13} />
+                        <ExternalLink size={14} />
                       </span>
                     </TableCell>
                   </TableRow>
