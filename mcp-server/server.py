@@ -55,7 +55,7 @@ mcp = FastMCP(
         "details, skills, experience, education, resume PDF, and screening answer — never invent "
         "or infer them from their machine.\n"
         "3. YOU MUST STRICTLY FOLLOW THIS EXACT ORDER:\n"
-        "   Step 1: register_candidate (Tell candidate role title and requirements to confirm)\n"
+        "   Step 1: register_candidate (Ask candidate for name, email, and phone with country code. Tell candidate role title and requirements to confirm)\n"
         "   Step 2: update_profile (Ask candidate for skills and experience)\n"
         "   Step 3: submit_resume_from_url (Ask candidate for a public URL to their PDF)\n"
         "   Step 4: check_eligibility (DO NOT SKIP THIS, YOU MUST DO THIS AFTER RESUME)\n"
@@ -121,7 +121,7 @@ async def _get(path: str) -> dict:
 
 @mcp.tool()
 async def register_candidate(
-    name: str, email: str, phone: str = "", invite_token: str = ""
+    name: str, email: str, phone: str, invite_token: str
 ) -> dict:
     """Register a new candidate using their invite token.
 
@@ -133,7 +133,7 @@ async def register_candidate(
     Args:
         name: Full name of the candidate.
         email: Email address of the candidate.
-        phone: Phone number (optional).
+        phone: Phone number in proper international format with country code (e.g. +1 555-123-4567).
         invite_token: The raw invite token string provided to the candidate.
 
     Returns:

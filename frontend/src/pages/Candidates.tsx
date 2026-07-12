@@ -10,7 +10,7 @@ import { useToast } from '../components/ui/Toast';
 import {
   Search, User, ClipboardCheck, FileText, Clock,
   Mail, Phone, Briefcase, GraduationCap, Download,
-  ChevronDown, ChevronRight, Filter, ExternalLink,
+  Filter, ExternalLink
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -39,26 +39,6 @@ interface Candidate {
   profile_status: string;
   created_at: string;
   updated_at?: string;
-}
-
-interface ScreeningAnswer {
-  question: string;
-  answer: string;
-  score: number;
-  feedback: string;
-  question_number: number;
-}
-
-interface ScreeningSession {
-  id: string;
-  candidate_id: string;
-  role_id: string;
-  status: string;
-  total_questions: number;
-  score: number;
-  created_at: string;
-  candidates?: { name: string; email: string };
-  screening_answers?: ScreeningAnswer[];
 }
 
 interface CandidateFile {
@@ -136,7 +116,7 @@ function formatFileSize(bytes: number): string {
 function scoreColor(score: number): { bg: string; text: string } {
   if (score >= 7) return { bg: 'var(--success-bg)', text: 'var(--success)' };
   if (score >= 5) return { bg: 'var(--warning-bg)', text: 'var(--warning)' };
-  return { bg: 'var(--danger-bg)', text: 'var(--danger)' };
+  return { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)' };
 }
 
 // ─── Inline Style Definitions ─────────────────────────────────────────────────
@@ -267,9 +247,8 @@ function ProfileTab({ candidate }: { candidate: Candidate }) {
 
 function ScreeningTab({ candidateId }: { candidateId: string }) {
   const { toast } = useToast();
-  const [sessions, setSessions] = useState<ScreeningSession[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -368,8 +347,8 @@ function ScreeningTab({ candidateId }: { candidateId: string }) {
                 gap: '14px',
               }}>
                 {answers
-                  .sort((a, b) => a.question_number - b.question_number)
-                  .map((ans, idx) => {
+                  .sort((a: any, b: any) => a.question_number - b.question_number)
+                  .map((ans: any, idx: number) => {
                     const asc = scoreColor(ans.score);
                     return (
                       <div key={idx} style={{
@@ -682,7 +661,7 @@ function CandidateDetailModal({
 
   return (
     <Modal isOpen={!!candidate} onClose={onClose} title={titleNode} size="xl">
-      <Tabs tabs={MODAL_TABS} activeTab={activeTab} onChange={setActiveTab} />
+      <Tabs tabs={MODAL_TABS} activeTab={activeTab} onChange={(id) => setActiveTab(id as any)} />
       <div style={{ marginTop: '20px' }}>
         {activeTab === 'profile' && <ProfileTab candidate={candidate} />}
         {activeTab === 'screening' && <ScreeningTab candidateId={candidate.id} />}
