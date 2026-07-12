@@ -66,9 +66,9 @@ async def verify_token(req: VerifyTokenRequest, supabase=Depends(get_supabase)):
     token_service = TokenService(supabase)
     token_data = await token_service.validate_token(req.token)
     if not token_data:
-        raise HTTPException(status_code=400, detail="Invalid token")
+        raise HTTPException(status_code=400, detail="Invalid token. Please tell the candidate: 'The invite token you provided is invalid. Could you please double-check it?'")
     if token_data["is_revoked"]:
-        raise HTTPException(status_code=400, detail="Token revoked")
+        raise HTTPException(status_code=400, detail="Token revoked. Please tell the candidate: 'Your invite token has been revoked by HR. Please contact them for a new one.'")
     
     return {
         "valid": True,
@@ -81,23 +81,32 @@ async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get
     token_service = TokenService(supabase)
     token_data = await token_service.validate_token(req.token)
     if not token_data:
-        raise HTTPException(status_code=400, detail="Invalid invite token")
+        raise HTTPException(status_code=400, detail="Please tell the candidate: 'The invite token you provided is invalid or unrecognized.'")
 
     # Returning candidate (same email) vs brand-new one.
     existing = supabase.table("candidates").select("id").eq("email", req.email).execute()
     is_new = not existing.data
     
+    existing_candidate_id = existing.data[0]["id"] if not is_new else None
+    
     if not is_new:
-        existing_candidate_id = existing.data[0]["id"]
         app_check = supabase.table("applications").select("id").eq("candidate_id", existing_candidate_id).eq("role_id", token_data["role_id"]).execute()
         if app_check.data:
-            raise HTTPException(status_code=400, detail="You have already applied for this role. You cannot register multiple times for the same role with the same email.")
+            raise HTTPException(status_code=400, detail="Please tell the candidate: 'It looks like you have already applied for this role! You cannot apply multiple times for the same role using the same email address.'")
 
-    # Enforce the invite lifecycle. Revoked / expired always block; the usage limit
-    # only blocks a NEW candidate taking a fresh slot (a returning candidate can resume).
-    reason = TokenService.usable_reason(token_data, check_limit=is_new)
+    # Check if they already started an application for THIS role recently (resuming).
+    # We consider them resuming if they have a screening session or resume for this role/candidate.
+    is_resuming = False
+    if not is_new:
+        resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", existing_candidate_id).eq("file_type", "resume").execute()
+        if resume_check.data:
+            is_resuming = True
+
+    # Enforce the invite lifecycle limit. If they are just resuming an incomplete application, we don't block them.
+    reason = TokenService.usable_reason(token_data, check_limit=not is_resuming)
     if reason:
-        raise HTTPException(status_code=400, detail=reason)
+        # reason is something like "This invite has reached its usage limit."
+        raise HTTPException(status_code=400, detail=f"Please tell the candidate: '{reason} Please request a new invite link from HR.'")
 
     # The invite is bound to exactly one role; make sure it still accepts applicants.
     role = (
@@ -115,9 +124,10 @@ async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get
         name=req.name,
         email=req.email,
         phone=req.phone,
-        token_id=token_data["id"],
+        token_id=token_data["id"] if not is_resuming else None,
     )
-    if is_new:
+    
+    if not is_resuming:
         await token_service.consume_use(token_data["id"])
 
     sc = role.get("screening_config") or {}
@@ -201,7 +211,7 @@ async def check_eligibility(req: EligibilityCheckRequest, supabase=Depends(get_s
     """Evaluate a candidate against the role's HR-defined eligibility rules."""
     resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
     if not resume_check.data:
-        raise HTTPException(status_code=400, detail="State Error: You must upload a resume using submit_resume_from_url BEFORE checking eligibility.")
+        raise HTTPException(status_code=400, detail="State Error: You must upload a resume before checking eligibility. Please tell the candidate: 'Could you please provide a public link to your resume PDF first? I need it before I can check your eligibility.'")
         
     service = EligibilityService(supabase)
     return await service.evaluate(req.candidate_id, req.role_id)
@@ -210,7 +220,7 @@ async def check_eligibility(req: EligibilityCheckRequest, supabase=Depends(get_s
 async def start_screening(req: StartScreeningRequest, supabase=Depends(get_supabase)):
     resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
     if not resume_check.data:
-        raise HTTPException(status_code=400, detail="State Error: You must upload a resume BEFORE starting screening.")
+        raise HTTPException(status_code=400, detail="State Error: You must upload a resume before starting the screening. Please tell the candidate: 'Please share a link to your resume PDF so we can proceed.'")
         
     screening_service = ScreeningService(supabase)
     session = await screening_service.start_session(req.candidate_id, req.role_id)
