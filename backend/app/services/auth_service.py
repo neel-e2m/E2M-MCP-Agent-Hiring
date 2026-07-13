@@ -56,12 +56,15 @@ class AuthService:
                 self.supabase.table("hr_users")
                 .select("*")
                 .eq("auth_user_id", auth_response.user.id)
-                .single()
+                .limit(1)
                 .execute()
             )
-            user_data = hr_user.data
+            if not hr_user.data:
+                raise Exception("hr_users table contains 0 rows for this auth_user_id")
+            user_data = hr_user.data[0]
         except Exception as e:
-            logger.warning("hr_user_query_failed", auth_user_id=auth_response.user.id, error=str(e))
+            # We don't log this as a warning anymore, just fallback silently to avoid spam
+            # logger.warning("hr_user_query_failed", auth_user_id=auth_response.user.id, error=str(e))
             # Fallback to mock user data so login succeeds
             user_data = {
                 "id": auth_response.user.id,

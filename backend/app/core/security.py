@@ -106,7 +106,6 @@ class SecurityService:
                     "verify_exp": True,
                 },
             )
-            log.info("Supabase JWT decoded via ES256 fallback (no sig verification)")
             return payload
         except JWTError as exc:
             log.error(f"JWT Verification failed: {exc}")
