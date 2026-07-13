@@ -98,6 +98,12 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function formatStatusText(status: string): string {
+  if (status === 'in_progress') return 'In Progress';
+  if (!status) return '';
+  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+}
+
 function formatDateTime(dateStr: string): string {
   return new Date(dateStr).toLocaleString('en-US', {
     month: 'short',
@@ -840,7 +846,7 @@ export function Candidates() {
                     <TableCell style={{ color: 'var(--text-secondary)' }}>{candidate.phone || '-'}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusBadgeVariant(candidate.profile_status)}>
-                        {candidate.profile_status}
+                        {formatStatusText(candidate.profile_status)}
                       </Badge>
                     </TableCell>
                     <TableCell style={{ color: 'var(--text-secondary)' }}>

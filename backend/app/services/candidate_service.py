@@ -148,8 +148,30 @@ class CandidateService:
 
         result = query.execute()
 
+        candidates = result.data or []
+
+        # Dynamically compute the global highest status for each candidate
+        # A candidate is 'complete' if they have any applications.
+        # A candidate is 'in_progress' if they have any screening sessions but no applications.
+        if candidates:
+            candidate_ids = [c["id"] for c in candidates]
+            
+            # Fetch sessions and apps for these candidates
+            sessions = self.supabase.table("screening_sessions").select("candidate_id").in_("candidate_id", candidate_ids).execute()
+            apps = self.supabase.table("applications").select("candidate_id").in_("candidate_id", candidate_ids).execute()
+            
+            complete_ids = {a["candidate_id"] for a in (apps.data or []) if a.get("candidate_id")}
+            in_progress_ids = {s["candidate_id"] for s in (sessions.data or []) if s.get("candidate_id")}
+            
+            for c in candidates:
+                cid = c["id"]
+                if cid in complete_ids:
+                    c["profile_status"] = "complete"
+                elif cid in in_progress_ids:
+                    c["profile_status"] = "in_progress"
+
         return {
-            "candidates": result.data or [],
+            "candidates": candidates,
             "total": result.count or 0,
             "page": page,
             "per_page": per_page,

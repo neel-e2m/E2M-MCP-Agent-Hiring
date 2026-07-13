@@ -86,6 +86,14 @@ class ScreeningService:
                 "evaluation_metadata": {"category": q.get("category", "general")},
             }).execute()
 
+        # Update the candidate's global profile_status to in_progress if it's currently draft
+        candidate_record = self.supabase.table("candidates").select("profile_status").eq("id", candidate_id).single().execute()
+        if candidate_record.data and candidate_record.data.get("profile_status") == "draft":
+            from app.core.constants import ProfileStatus
+            self.supabase.table("candidates").update(
+                {"profile_status": ProfileStatus.IN_PROGRESS}
+            ).eq("id", candidate_id).execute()
+
         logger.info("screening_session_started", session_id=session["id"], total_questions=total_questions)
         return session
 
