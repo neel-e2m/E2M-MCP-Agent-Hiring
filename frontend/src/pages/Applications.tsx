@@ -32,6 +32,7 @@ const STATUS_OPTIONS = [
   { value: 'submitted', label: 'Submitted' },
   { value: 'under_review', label: 'Under Review' },
   { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'interviewing', label: 'Interviewing' },
   { value: 'approved', label: 'Approved' },
   { value: 'rejected', label: 'Rejected' },
 ];
@@ -41,6 +42,7 @@ function getStatusBadge(status: string) {
     case 'submitted': return <Badge variant="info">Submitted</Badge>;
     case 'under_review': return <Badge variant="warning">Under Review</Badge>;
     case 'shortlisted': return <Badge variant="success">Shortlisted</Badge>;
+    case 'interviewing': return <Badge variant="info" style={{ background: '#8b5cf6', color: '#fff' }}>Interviewing</Badge>;
     case 'approved': return <Badge variant="success">Approved</Badge>;
     case 'rejected': return <Badge variant="danger">Rejected</Badge>;
     default: return <Badge>{status}</Badge>;
@@ -78,6 +80,13 @@ export function Applications() {
   const [candidateFiles, setCandidateFiles] = useState<any[]>([]);
   const [showAllSkills, setShowAllSkills] = useState(false);
 
+  /* ── scheduling state ── */
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [interviewers, setInterviewers] = useState<any[]>([]);
+  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00' });
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [generatedEmail, setGeneratedEmail] = useState<{subject: string, body: string} | null>(null);
+
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   /* ── fetch lists ── */
@@ -89,6 +98,15 @@ export function Applications() {
       toast('Failed to load roles', 'error');
     }
   }, [toast]);
+
+  const fetchInterviewers = useCallback(async () => {
+    try {
+      const res = await api.get('/interviewers/');
+      setInterviewers(res.data || []);
+    } catch {
+      // it's fine if this fails or is empty initially
+    }
+  }, []);
 
   const fetchApplications = useCallback(async (p: number, st: string, r: string) => {
     setLoading(true);
@@ -109,7 +127,7 @@ export function Applications() {
     }
   }, [toast]);
 
-  useEffect(() => { fetchRoles(); }, [fetchRoles]);
+  useEffect(() => { fetchRoles(); fetchInterviewers(); }, [fetchRoles, fetchInterviewers]);
   useEffect(() => { fetchApplications(page, statusFilter, roleFilter); }, [page, statusFilter, roleFilter, fetchApplications]);
 
   const handleFilterChange = (type: 'status' | 'role', val: string) => {
@@ -126,6 +144,8 @@ export function Applications() {
     setPromptAnswer(null);
     setCandidateFiles([]);
     setShowAllSkills(false);
+    setIsScheduleOpen(false);
+    setGeneratedEmail(null);
     setDetailLoading(true);
     try {
       const res = await api.get(`/applications/${appId}`);
@@ -162,6 +182,8 @@ export function Applications() {
     setSelectedAppId(null);
     setAppDetail(null);
     setPromptAnswer(null);
+    setIsScheduleOpen(false);
+    setGeneratedEmail(null);
   };
 
   /* ── actions ── */
@@ -193,6 +215,36 @@ export function Applications() {
       toast('Failed to generate AI recommendation', 'error');
     } finally {
       setAiRecLoading(false);
+    }
+  };
+
+  const handleScheduleInterview = async () => {
+    if (!scheduleForm.interviewer_id || !scheduleForm.date || !scheduleForm.time) {
+      toast('Please fill in all required scheduling fields', 'warning');
+      return;
+    }
+    
+    setScheduleLoading(true);
+    try {
+      // Create ISO string
+      const dtStr = `${scheduleForm.date}T${scheduleForm.time}:00Z`;
+      
+      const res = await api.post('/interviews/', {
+        application_id: selectedAppId,
+        interviewer_id: scheduleForm.interviewer_id,
+        scheduled_at: dtStr,
+        notes: scheduleForm.notes
+      });
+      
+      // Get the email template
+      const emailRes = await api.get(`/interviews/${res.data.id}/email_template`);
+      setGeneratedEmail(emailRes.data);
+      
+      toast('Interview scheduled successfully!', 'success');
+    } catch (err: any) {
+      toast(err.response?.data?.detail || 'Failed to schedule interview', 'error');
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -464,6 +516,7 @@ export function Applications() {
                   >
                     <option value="under_review" style={optionStyle}>Under Review</option>
                     <option value="shortlisted" style={optionStyle}>Shortlist</option>
+                    <option value="interviewing" style={optionStyle}>Interviewing</option>
                     <option value="approved" style={optionStyle}>Approve</option>
                     <option value="rejected" style={optionStyle}>Reject</option>
                   </select>
@@ -482,8 +535,85 @@ export function Applications() {
                 <Button isLoading={reviewLoading} onClick={submitReview} style={{ width: '100%' }}>
                   Save Review
                 </Button>
+
+                {appDetail.status === 'shortlisted' && (
+                  <Button variant="outline" onClick={() => setIsScheduleOpen(true)} style={{ width: '100%', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                    <Calendar size={16} /> Schedule Interview
+                  </Button>
+                )}
               </div>
             </div>
+
+            {/* Schedule Interview Sub-Modal */}
+            {isScheduleOpen && (
+              <Modal isOpen={isScheduleOpen} onClose={() => setIsScheduleOpen(false)} title="Schedule Interview" size="md">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {!generatedEmail ? (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Interviewer</label>
+                        <select
+                          value={scheduleForm.interviewer_id}
+                          onChange={e => setScheduleForm({ ...scheduleForm, interviewer_id: e.target.value })}
+                          style={selectStyle}
+                        >
+                          <option value="" style={optionStyle}>Select an Interviewer...</option>
+                          {interviewers.map(iv => (
+                            <option key={iv.id} value={iv.id} style={optionStyle}>{iv.full_name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Date</label>
+                          <input type="date" style={selectStyle} value={scheduleForm.date} onChange={e => setScheduleForm({...scheduleForm, date: e.target.value})} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Time (10am-6pm)</label>
+                          <input type="time" style={selectStyle} value={scheduleForm.time} onChange={e => setScheduleForm({...scheduleForm, time: e.target.value})} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <Textarea
+                          label="Notes"
+                          placeholder="Internal notes..."
+                          value={scheduleForm.notes}
+                          onChange={e => setScheduleForm({ ...scheduleForm, notes: e.target.value })}
+                          style={{ resize: 'none' }}
+                        />
+                      </div>
+
+                      <Button isLoading={scheduleLoading} onClick={handleScheduleInterview} style={{ width: '100%', marginTop: '10px' }}>
+                        Confirm & Generate Invite
+                      </Button>
+                    </>
+                  ) : (
+                    <div>
+                      <div style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '12px', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Sparkles size={16} /> Interview scheduled successfully!
+                      </div>
+                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px' }}>Email Template generated</h4>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>Copy and paste this to send to the candidate:</p>
+                      
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '0.875rem' }}>
+                        <div style={{ marginBottom: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Subject:</span> {generatedEmail.subject}
+                        </div>
+                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                          {generatedEmail.body}
+                        </div>
+                      </div>
+
+                      <Button onClick={() => setIsScheduleOpen(false)} style={{ width: '100%', marginTop: '20px' }}>
+                        Done
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Modal>
+            )}
 
             {/* Candidate Files (Full Width) */}
             {candidateFiles.length > 0 && (

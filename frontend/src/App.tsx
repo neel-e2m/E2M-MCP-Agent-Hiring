@@ -9,6 +9,7 @@ import { CandidateKanban } from './pages/CandidateKanban';
 import { Roles } from './pages/Roles';
 import { Applications } from './pages/Applications';
 import { Invitations } from './pages/Invitations';
+import { Interviews } from './pages/Interviews';
 import { useAuthStore } from './store/authStore';
 
 // Protected Route Wrapper
@@ -36,6 +37,7 @@ function App() {
           <Route path="/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
           <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
           <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
+          <Route path="/interviews" element={<ProtectedRoute><Interviews /></ProtectedRoute>} />
           
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />

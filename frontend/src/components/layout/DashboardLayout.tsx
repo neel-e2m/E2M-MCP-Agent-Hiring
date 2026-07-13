@@ -7,7 +7,8 @@ import {
   Briefcase, 
   Inbox, 
   Link as LinkIcon, 
-  LogOut
+  LogOut,
+  Calendar
 } from 'lucide-react';
 import styles from './DashboardLayout.module.css';
 import { useAuthStore } from '../../store/authStore';
@@ -20,6 +21,7 @@ const navItems = [
   { label: 'Roles', icon: Briefcase, path: '/roles' },
   { label: 'Applications', icon: Inbox, path: '/applications' },
   { label: 'Invitations', icon: LinkIcon, path: '/invitations' },
+  { label: 'Interviews', icon: Calendar, path: '/interviews' },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {

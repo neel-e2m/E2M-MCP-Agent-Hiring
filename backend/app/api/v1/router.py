@@ -12,6 +12,7 @@ from app.api.v1 import (
     auth,
     candidates,
     interviews,
+    interviewers,
     invitations,
     roles,
     screening,
@@ -27,5 +28,6 @@ api_router.include_router(roles.router, prefix="/roles")
 api_router.include_router(applications.router, prefix="/applications")
 api_router.include_router(invitations.router, prefix="/invites")
 api_router.include_router(interviews.router, prefix="/interviews")
+api_router.include_router(interviewers.router, prefix="/interviewers")
 api_router.include_router(screening.router, prefix="/screening")
 api_router.include_router(internal.router, prefix="/internal")
