@@ -165,9 +165,6 @@
 .activityList {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  max-height: 468px;
-  padding-right: 8px;
 }
 
 .activityItem {
