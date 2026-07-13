@@ -56,11 +56,11 @@ async def review_application(
     if data.notes:
         await service.add_review(app_id, data.notes, current_user["id"])
     
-    updated_app = await service.update_status(app_id, data.status, current_user["id"])
+    await service.update_status(app_id, data.status, current_user["id"])
+    app_details = await service.get_application(app_id)
     
     try:
         from app.services.email_service import EmailService
-        app_details = await service.get_application(app_id)
         candidate = app_details.get("candidates")
         role = app_details.get("roles")
         if candidate and role:
@@ -72,7 +72,7 @@ async def review_application(
     except Exception as e:
         pass
         
-    return updated_app
+    return app_details
 
 
 @router.post("/{app_id}/recommendation", dependencies=[Depends(require_role("admin", "hr_manager"))])
