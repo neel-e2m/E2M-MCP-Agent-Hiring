@@ -188,6 +188,7 @@ async def get_role_details(role_id: str) -> dict:
 async def update_profile(
     candidate_id: str,
     summary: str = "",
+    location: str = "",
     skills: list[str] = [],
     experience: list[dict] = [],
     education: list[dict] = [],
@@ -199,6 +200,7 @@ async def update_profile(
     Args:
         candidate_id: The candidate's UUID returned from register_candidate.
         summary: A short professional summary / bio.
+        location: The candidate's city, state, or country (e.g. "San Francisco, CA" or "Remote").
         skills: List of skill strings, e.g. ["Python", "FastAPI", "LLMs"].
         experience: List of experience dicts, each with keys like
                     "company", "title", "start_date", "end_date", "description".
@@ -213,6 +215,7 @@ async def update_profile(
         f"/api/v1/internal/candidates/{candidate_id}/profile",
         {
             "summary": summary,
+            "location": location,
             "skills": skills,
             "experience": experience,
             "education": education,

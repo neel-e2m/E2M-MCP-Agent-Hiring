@@ -21,6 +21,7 @@ export interface Candidate {
   name: string;
   email: string;
   phone?: string;
+  location?: string;
   summary?: string;
   skills?: string[];
   experience?: {
@@ -660,6 +661,12 @@ export function CandidateDetailModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Phone size={15} style={{ color: 'var(--text-secondary)' }} />
             {candidate.phone}
+          </div>
+        )}
+        {candidate.location && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-secondary)' }}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            {candidate.location}
           </div>
         )}
       </div>

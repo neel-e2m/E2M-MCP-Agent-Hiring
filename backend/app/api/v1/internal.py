@@ -27,6 +27,7 @@ class RegisterCandidateRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     summary: Optional[str] = None
+    location: Optional[str] = None
     skills: Optional[List[str]] = None
     experience: Optional[List[Dict[str, Any]]] = None
     education: Optional[List[Dict[str, Any]]] = None
