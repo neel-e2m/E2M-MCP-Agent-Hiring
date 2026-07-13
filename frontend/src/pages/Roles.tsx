@@ -47,6 +47,7 @@ interface Role {
   created_by: string;
   created_at: string;
   updated_at: string;
+  faqs?: { question: string; answer: string }[];
 }
 
 interface Question {
@@ -73,12 +74,13 @@ interface RoleForm {
   custom_rules: string;
   auto_shortlist_enabled: boolean;
   shortlist_threshold: string;
+  faqs: { question: string; answer: string }[];
 }
 
 const EMPTY_FORM: RoleForm = {
   title: '', description: '', requirements: '', department: '', location: '', employment_type: 'full_time',
   min_experience_years: '', min_education: 'any', required_skills: '', custom_rules: '',
-  auto_shortlist_enabled: false, shortlist_threshold: '7',
+  auto_shortlist_enabled: false, shortlist_threshold: '7', faqs: []
 };
 
 /* ─── constants ─── */
@@ -216,6 +218,7 @@ export function Roles() {
         location: formData.location || undefined,
         employment_type: formData.employment_type,
         screening_config: buildScreeningConfig(formData),
+        faqs: formData.faqs,
       };
       if (formData.requirements.trim()) {
         payload.requirements = formData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean);
@@ -266,6 +269,7 @@ export function Roles() {
       department: role.department || '',
       location: role.location || '',
       employment_type: role.employment_type || 'full_time',
+      faqs: role.faqs || [],
       ...configToForm(role.screening_config),
     });
     const parsedConfig = configToForm(role.screening_config);
@@ -292,6 +296,7 @@ export function Roles() {
         location: editData.location || undefined,
         employment_type: editData.employment_type,
         screening_config: buildScreeningConfig(editData),
+        faqs: editData.faqs,
       };
       if (editData.requirements.trim()) {
         payload.requirements = editData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean);
@@ -608,6 +613,66 @@ export function Roles() {
                     </div>
                   )}
                 </div>
+
+                {/* FAQ Section */}
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <MessageSquare size={16} /> Frequently Asked Questions (MCP Agent)
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                    Define FAQs that the AI agent can use to answer candidate questions.
+                  </p>
+                  
+                  {formData.faqs.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                      {formData.faqs.map((faq, idx) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFaqs = [...formData.faqs];
+                              newFaqs.splice(idx, 1);
+                              setFormData({ ...formData, faqs: newFaqs });
+                            }}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <Input
+                            label={`Question ${idx + 1}`}
+                            value={faq.question}
+                            onChange={(e) => {
+                              const newFaqs = [...formData.faqs];
+                              newFaqs[idx].question = e.target.value;
+                              setFormData({ ...formData, faqs: newFaqs });
+                            }}
+                            placeholder="e.g. What is the expected interview timeline?"
+                          />
+                          <Textarea
+                            label={`Answer ${idx + 1}`}
+                            value={faq.answer}
+                            onChange={(e) => {
+                              const newFaqs = [...formData.faqs];
+                              newFaqs[idx].answer = e.target.value;
+                              setFormData({ ...formData, faqs: newFaqs });
+                            }}
+                            placeholder="e.g. You can expect a response within 2 weeks."
+                            style={{ minHeight: '60px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus size={14} />}
+                    onClick={() => setFormData({ ...formData, faqs: [...formData.faqs, { question: '', answer: '' }] })}
+                  >
+                    Add FAQ
+                  </Button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
@@ -868,6 +933,67 @@ export function Roles() {
                     )}
                   </div>
                 </div>
+
+                {/* FAQ Section */}
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <MessageSquare size={16} /> Frequently Asked Questions (MCP Agent)
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                    Define FAQs that the AI agent can use to answer candidate questions.
+                  </p>
+                  
+                  {editData.faqs.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                      {editData.faqs.map((faq, idx) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border)', position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFaqs = [...editData.faqs];
+                              newFaqs.splice(idx, 1);
+                              setEditData({ ...editData, faqs: newFaqs });
+                            }}
+                            style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <Input
+                            label={`Question ${idx + 1}`}
+                            value={faq.question}
+                            onChange={(e) => {
+                              const newFaqs = [...editData.faqs];
+                              newFaqs[idx].question = e.target.value;
+                              setEditData({ ...editData, faqs: newFaqs });
+                            }}
+                            placeholder="e.g. What is the expected interview timeline?"
+                          />
+                          <Textarea
+                            label={`Answer ${idx + 1}`}
+                            value={faq.answer}
+                            onChange={(e) => {
+                              const newFaqs = [...editData.faqs];
+                              newFaqs[idx].answer = e.target.value;
+                              setEditData({ ...editData, faqs: newFaqs });
+                            }}
+                            placeholder="e.g. You can expect a response within 2 weeks."
+                            style={{ minHeight: '60px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus size={14} />}
+                    onClick={() => setEditData({ ...editData, faqs: [...editData.faqs, { question: '', answer: '' }] })}
+                  >
+                    Add FAQ
+                  </Button>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                   <Button isLoading={editLoading} onClick={handleEdit}>Save Changes</Button>
                 </div>

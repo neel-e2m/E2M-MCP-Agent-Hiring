@@ -61,6 +61,22 @@ class EligibilityCheckRequest(BaseModel):
     role_id: str
 
 
+@router.get("/roles/{role_id}/faqs")
+async def get_role_faqs(
+    role_id: str,
+    supabase=Depends(get_supabase)
+) -> dict:
+    """Get FAQs for a specific role."""
+    result = supabase.table("roles").select("faqs, title").eq("id", role_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    role = result.data[0]
+    return {
+        "role_title": role.get("title"),
+        "faqs": role.get("faqs") or []
+    }
+
 @router.post("/verify-token")
 async def verify_token(req: VerifyTokenRequest, supabase=Depends(get_supabase)):
     token_service = TokenService(supabase)

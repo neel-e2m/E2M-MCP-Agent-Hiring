@@ -26,6 +26,7 @@ class RoleCreate(BaseModel):
     location: str | None = None
     employment_type: str = "full_time"
     screening_config: dict | None = None
+    faqs: list[dict] = []
 
 
 class RoleUpdate(BaseModel):
@@ -36,6 +37,7 @@ class RoleUpdate(BaseModel):
     location: str | None = None
     employment_type: str | None = None
     screening_config: dict | None = None
+    faqs: list[dict] | None = None
 
 
 class QuestionCreate(BaseModel):

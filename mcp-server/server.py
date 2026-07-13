@@ -149,6 +149,24 @@ async def register_candidate(
 
 
 @mcp.tool()
+async def get_role_faqs(role_id: str) -> dict:
+    """Get the Frequently Asked Questions (FAQs) for a specific role.
+
+    Use this tool when a candidate asks questions about the role they are applying for,
+    such as expected timeline, benefits, interview process, or requirements. 
+    It will return the FAQs defined by the HR team for this role.
+
+    Args:
+        role_id: The ID of the role to get FAQs for.
+
+    Returns:
+        dict containing the role_title and a list of faqs (each with a 'question' and 'answer').
+    """
+    logger.info("tool_invoked", tool="get_role_faqs", role_id=role_id)
+    return await _get(f"/api/v1/internal/roles/{role_id}/faqs")
+
+
+@mcp.tool()
 async def get_role_details(role_id: str) -> dict:
     """Get details of the role the candidate is applying for.
 
