@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
+  Kanban,
   Briefcase, 
   Inbox, 
   Link as LinkIcon, 
@@ -15,6 +16,7 @@ import logo from '../../assets/E2M_Logo.png';
 const navItems = [
   { label: 'Overview', icon: LayoutDashboard, path: '/' },
   { label: 'Candidates', icon: Users, path: '/candidates' },
+  { label: 'Kanban View', icon: Kanban, path: '/candidates/kanban' },
   { label: 'Roles', icon: Briefcase, path: '/roles' },
   { label: 'Applications', icon: Inbox, path: '/applications' },
   { label: 'Invitations', icon: LinkIcon, path: '/invitations' },

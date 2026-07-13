@@ -4,7 +4,7 @@ Roles routes.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -132,3 +132,17 @@ async def delete_question(
     """Soft-delete a screening question."""
     await service.delete_question(question_id)
     return {"message": "Question deleted"}
+
+
+@router.get("/{role_id}/candidates")
+async def get_role_candidates(
+    role_id: str,
+    supabase: Annotated[Client, Depends(get_supabase)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+) -> dict:
+    """Get all candidates associated with a role via invites or applications."""
+    from app.services.candidate_service import CandidateService
+    service = CandidateService(supabase)
+    return await service.list_candidates_by_role(role_id=role_id, page=page, per_page=per_page, status=status)

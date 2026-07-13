@@ -88,6 +88,11 @@ class CandidateService:
         if "skills" in update_data and isinstance(update_data["skills"], str):
             update_data["skills"] = [s.strip() for s in update_data["skills"].split(",") if s.strip()]
 
+        # Automatically advance draft to in_progress upon profile update
+        candidate = await self.get_candidate(candidate_id)
+        if candidate.get("profile_status") == ProfileStatus.DRAFT:
+            update_data["profile_status"] = ProfileStatus.IN_PROGRESS
+
         result = (
             self.supabase.table("candidates")
             .update(update_data)
@@ -141,6 +146,79 @@ class CandidateService:
         offset = (page - 1) * per_page
         query = query.order("created_at", desc=True).range(offset, offset + per_page - 1)
 
+        result = query.execute()
+
+        return {
+            "candidates": result.data or [],
+            "total": result.count or 0,
+            "page": page,
+            "per_page": per_page,
+        }
+
+    async def list_candidates_by_role(
+        self,
+        role_id: str,
+        page: int = 1,
+        per_page: int = 20,
+        status: str | None = None,
+    ) -> dict:
+        """List candidates associated with a specific role, computing their role-specific status."""
+        
+        # 1. Get candidates with invites for this role (draft baseline)
+        tokens = self.supabase.table("access_tokens").select("candidate_id").eq("role_id", role_id).not_.is_("candidate_id", "null").execute()
+        
+        # 2. Get candidates with screening sessions for this role (in_progress baseline)
+        sessions = self.supabase.table("screening_sessions").select("candidate_id").eq("role_id", role_id).execute()
+        
+        # 3. Get candidates with applications for this role (complete baseline)
+        apps = self.supabase.table("applications").select("candidate_id").eq("role_id", role_id).execute()
+        
+        draft_ids = set()
+        in_progress_ids = set()
+        complete_ids = set()
+        
+        if apps.data:
+            for a in apps.data:
+                if a.get("candidate_id"):
+                    complete_ids.add(a["candidate_id"])
+                    
+        if sessions.data:
+            for s in sessions.data:
+                cid = s.get("candidate_id")
+                if cid and cid not in complete_ids:
+                    in_progress_ids.add(cid)
+                    
+        if tokens.data:
+            for t in tokens.data:
+                cid = t.get("candidate_id")
+                if cid and cid not in complete_ids and cid not in in_progress_ids:
+                    draft_ids.add(cid)
+                    
+        # Filter by status if provided
+        target_ids = set()
+        if status == "complete":
+            target_ids = complete_ids
+        elif status == "in_progress":
+            target_ids = in_progress_ids
+        elif status == "draft":
+            target_ids = draft_ids
+        else:
+            target_ids = draft_ids.union(in_progress_ids).union(complete_ids)
+            
+        if not target_ids:
+            return {
+                "candidates": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+            }
+
+        # Fetch candidates
+        query = self.supabase.table("candidates").select("*", count="exact").in_("id", list(target_ids))
+        
+        offset = (page - 1) * per_page
+        query = query.order("created_at", desc=True).range(offset, offset + per_page - 1)
+        
         result = query.execute()
 
         return {

@@ -46,7 +46,7 @@ class ApplicationService:
         if existing.data:
             raise ConflictError(detail="You have already applied for this role")
 
-        # 2. Check profile completeness
+        # 2. Check profile completeness (allow either IN_PROGRESS or COMPLETE)
         candidate = (
             self.supabase.table("candidates")
             .select("profile_status")
@@ -54,8 +54,8 @@ class ApplicationService:
             .single()
             .execute()
         )
-        if not candidate.data or candidate.data.get("profile_status") != ProfileStatus.COMPLETE:
-            raise ValidationError(detail="Your profile must be complete before applying")
+        if not candidate.data or candidate.data.get("profile_status") not in [ProfileStatus.COMPLETE, ProfileStatus.IN_PROGRESS]:
+            raise ValidationError(detail="Your profile must be at least in progress before applying")
 
         # 3. Check resume upload
         resume = (
@@ -124,6 +124,11 @@ class ApplicationService:
 
         app_data = result.data[0]
         logger.info("application_submitted", application_id=app_data["id"], candidate_id=candidate_id, status=status)
+        
+        # Mark profile as complete once applied
+        self.supabase.table("candidates").update(
+            {"profile_status": ProfileStatus.COMPLETE}
+        ).eq("id", candidate_id).execute()
         
         # Trigger WebSocket broadcast would happen here or in the router layer
         return app_data

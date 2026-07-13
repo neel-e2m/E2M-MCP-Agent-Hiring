@@ -19,6 +19,7 @@ class ApplicationStatus(str, Enum):
 
 class ProfileStatus(str, Enum):
     DRAFT = "draft"
+    IN_PROGRESS = "in_progress"
     COMPLETE = "complete"
 
 

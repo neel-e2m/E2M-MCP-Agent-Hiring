@@ -16,7 +16,7 @@ import api from '../lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Candidate {
+export interface Candidate {
   id: string;
   name: string;
   email: string;
@@ -68,6 +68,7 @@ const PER_PAGE = 20;
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
+  { value: 'in_progress', label: 'In Progress' },
   { value: 'complete', label: 'Complete' },
 ];
 
@@ -623,7 +624,7 @@ function ActivityTab({ candidateId }: { candidateId: string }) {
 
 // ─── Candidate Detail Modal ───────────────────────────────────────────────────
 
-function CandidateDetailModal({
+export function CandidateDetailModal({
   candidate,
   isOpen,
   onClose,

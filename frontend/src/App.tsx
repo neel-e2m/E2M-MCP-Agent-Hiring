@@ -5,6 +5,7 @@ import { ToastProvider } from './components/ui/Toast';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Candidates } from './pages/Candidates';
+import { CandidateKanban } from './pages/CandidateKanban';
 import { Roles } from './pages/Roles';
 import { Applications } from './pages/Applications';
 import { Invitations } from './pages/Invitations';
@@ -31,6 +32,7 @@ function App() {
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/candidates" element={<ProtectedRoute><Candidates /></ProtectedRoute>} />
+          <Route path="/candidates/kanban" element={<ProtectedRoute><CandidateKanban /></ProtectedRoute>} />
           <Route path="/roles" element={<ProtectedRoute><Roles /></ProtectedRoute>} />
           <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
           <Route path="/invitations" element={<ProtectedRoute><Invitations /></ProtectedRoute>} />
