@@ -14,7 +14,7 @@ import uuid
 import datetime as dt
 
 from app.api.deps import get_current_user, get_supabase, require_role
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError, ValidationError, ConflictError
 
 router = APIRouter(tags=["Interviews"], dependencies=[Depends(get_current_user)])
 
@@ -23,6 +23,7 @@ class InterviewSchedule(BaseModel):
     application_id: str
     interviewer_id: str
     scheduled_at: str  # ISO 8601
+    duration: int = 30 # minutes
     meeting_link: str | None = None
     notes: str | None = None
 
@@ -64,6 +65,36 @@ async def schedule_interview(
     # Check hours (10 AM to 6 PM) local time of the dt_obj
     if dt_obj.hour < 10 or dt_obj.hour >= 18:
         raise ValidationError(detail="Interviews can only be scheduled between 10:00 AM and 6:00 PM")
+
+    new_start = dt_obj
+    new_end = new_start + dt.timedelta(minutes=data.duration)
+
+    # Check for interviewer schedule conflicts on the same day
+    # Get interviews for this interviewer that are not cancelled
+    start_of_day = new_start.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    end_of_day = new_start.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+    
+    existing_interviews = (
+        supabase.table("interviews")
+        .select("scheduled_at, duration")
+        .eq("interviewer_id", data.interviewer_id)
+        .neq("status", "cancelled")
+        .gte("scheduled_at", start_of_day)
+        .lte("scheduled_at", end_of_day)
+        .execute()
+    )
+
+    for ex in (existing_interviews.data or []):
+        try:
+            ex_start = dt.datetime.fromisoformat(ex["scheduled_at"].replace("Z", "+00:00"))
+            ex_dur = ex.get("duration") or 30
+            ex_end = ex_start + dt.timedelta(minutes=ex_dur)
+            
+            # Check overlap: (StartA < EndB) and (EndA > StartB)
+            if new_start < ex_end and new_end > ex_start:
+                raise ConflictError(detail="The selected interviewer is already booked during this time.")
+        except ValueError:
+            pass
 
     insert_data = data.model_dump()
     insert_data["status"] = "scheduled"

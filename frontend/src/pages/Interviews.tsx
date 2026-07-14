@@ -240,12 +240,16 @@ export function Interviews() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
           {todaysInterviews.map(inv => {
-            const timeStr = new Date(inv.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const startDt = new Date(inv.scheduled_at);
+            const duration = inv.duration || 30;
+            const endDt = new Date(startDt.getTime() + duration * 60000);
+            const timeStr = `${startDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} - ${endDt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} (${duration} min)`;
+            
             return (
               <Card key={inv.id}>
                 <CardContent style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', fontWeight: 600, fontSize: '0.9rem' }}>
                       <Clock size={18} />
                       {timeStr}
                     </div>

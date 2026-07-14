@@ -82,7 +82,7 @@ export function Applications() {
   /* ── scheduling state ── */
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [interviewers, setInterviewers] = useState<any[]>([]);
-  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00', notes: '' });
+  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00', duration: 30, notes: '' });
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [generatedEmail, setGeneratedEmail] = useState<boolean>(false);
 
@@ -232,6 +232,7 @@ export function Applications() {
         application_id: selectedAppId,
         interviewer_id: scheduleForm.interviewer_id,
         scheduled_at: dtStr,
+        duration: scheduleForm.duration,
         notes: scheduleForm.notes
       });
       
@@ -570,6 +571,21 @@ export function Applications() {
                           <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Time (10am-6pm)</label>
                           <input type="time" style={selectStyle} value={scheduleForm.time} onChange={e => setScheduleForm({...scheduleForm, time: e.target.value})} />
                         </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Duration</label>
+                        <select
+                          value={scheduleForm.duration}
+                          onChange={e => setScheduleForm({ ...scheduleForm, duration: parseInt(e.target.value, 10) })}
+                          style={selectStyle}
+                        >
+                          <option value={15} style={optionStyle}>15 minutes</option>
+                          <option value={30} style={optionStyle}>30 minutes</option>
+                          <option value={45} style={optionStyle}>45 minutes</option>
+                          <option value={60} style={optionStyle}>60 minutes</option>
+                          <option value={90} style={optionStyle}>90 minutes</option>
+                        </select>
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
