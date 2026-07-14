@@ -23,6 +23,7 @@ interface Interview {
   interviewer_id: string;
   status: string;
   scheduled_at: string;
+  duration?: number;
   meeting_link: string | null;
   notes: string | null;
   applications?: {
