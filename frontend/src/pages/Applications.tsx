@@ -29,7 +29,6 @@ const optionStyle: React.CSSProperties = { color: '#000' };
 const PER_PAGE = 20;
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
-  { value: 'submitted', label: 'Submitted' },
   { value: 'under_review', label: 'Under Review' },
   { value: 'shortlisted', label: 'Shortlisted' },
   { value: 'interviewing', label: 'Interviewing' },

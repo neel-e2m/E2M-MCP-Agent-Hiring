@@ -65,6 +65,7 @@ class AnalyticsService:
             "submitted": 0,
             "under_review": 0,
             "shortlisted": 0,
+            "interviewing": 0,
             "approved": 0,
             "rejected": 0,
         }

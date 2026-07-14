@@ -23,6 +23,7 @@ interface PipelineData {
   submitted: number;
   under_review: number;
   shortlisted: number;
+  interviewing: number;
   approved: number;
   rejected: number;
 }
@@ -69,6 +70,7 @@ const pipelineLabels: Record<string, string> = {
   submitted: 'Submitted',
   under_review: 'Under Review',
   shortlisted: 'Shortlisted',
+  interviewing: 'Interviewing',
   approved: 'Approved',
   rejected: 'Rejected',
 };
