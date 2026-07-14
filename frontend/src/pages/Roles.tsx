@@ -84,7 +84,7 @@ const EMPTY_FORM: RoleForm = {
 };
 
 /* ─── constants ─── */
-const CATEGORIES = ['general', 'technical', 'behavioral', 'mcp', 'llm', 'custom'] as const;
+const CATEGORIES = ['general', 'technical', 'prompt', 'custom'] as const;
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 
 const difficultyBadgeVariant: Record<string, 'success' | 'warning' | 'danger'> = {

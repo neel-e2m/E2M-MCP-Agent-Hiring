@@ -42,6 +42,7 @@ async def trigger_evaluation(
         
     answer_text = answer_res.data.get("answer")
     question_text = answer_res.data.get("question")
+    category = (answer_res.data.get("evaluation_metadata") or {}).get("category", "general")
     
     # Get role context
     session = supabase.table("screening_sessions").select("role_id").eq("id", data.session_id).single().execute()
@@ -49,14 +50,29 @@ async def trigger_evaluation(
     role_context = f"{role_res.data['title']} - {role_res.data['description']}"
     
     # Evaluate
-    evaluation = await llm.evaluate_answer(question_text, answer_text, role_context)
+    if category == "prompt":
+        evaluation = await llm.evaluate_prompt(question_text, answer_text)
+    else:
+        evaluation = await llm.evaluate_answer(question_text, answer_text, role_context)
     
+    metadata = answer_res.data.get("evaluation_metadata") or {}
+    metadata.update({
+        "strengths": evaluation.get("strengths", []),
+        "improvements": evaluation.get("improvements", []),
+    })
+    
+    if category == "prompt":
+        metadata.update({
+            "ai_generated_likelihood": evaluation.get("ai_generated_likelihood", 0.0),
+            "ai_flag": evaluation.get("ai_flag", False),
+        })
+
     # Save
     await service.update_answer_evaluation(
         data.answer_id,
         score=evaluation.get("score", 0),
         feedback=evaluation.get("feedback", ""),
-        metadata={"strengths": evaluation.get("strengths", []), "improvements": evaluation.get("improvements", [])}
+        metadata=metadata
     )
     
     return {"message": "Evaluation completed", "evaluation": evaluation}
