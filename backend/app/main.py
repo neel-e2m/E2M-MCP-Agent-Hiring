@@ -26,14 +26,19 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
+from app.core.scheduler import start_scheduler, shutdown_scheduler
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
     setup_logging(settings.ENVIRONMENT)
     logger.info("startup", app_name=settings.APP_NAME, env=settings.ENVIRONMENT)
     
+    start_scheduler()
+    
     yield
     
+    shutdown_scheduler()
     logger.info("shutdown")
 
 

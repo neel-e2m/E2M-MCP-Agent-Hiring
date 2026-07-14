@@ -41,6 +41,9 @@ async def list_interviews(
     return result.data or []
 
 
+from app.services.email_service import EmailService
+from app.core.scheduler import scheduler
+
 @router.post("/", dependencies=[Depends(require_role("admin", "hr_manager", "recruiter"))])
 async def schedule_interview(
     data: InterviewSchedule,
@@ -66,14 +69,54 @@ async def schedule_interview(
     insert_data["status"] = "scheduled"
     
     if not insert_data.get("meeting_link"):
-        # Generate dummy meet link
-        meet_id = f"{uuid.uuid4().hex[:3]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:3]}"
-        insert_data["meeting_link"] = f"https://meet.google.com/{meet_id}"
+        # Generate real Jitsi link
+        meet_id = f"e2m-interview-{uuid.uuid4().hex[:8]}"
+        insert_data["meeting_link"] = f"https://meet.jit.si/{meet_id}"
     
     result = supabase.table("interviews").insert(insert_data).execute()
     
     # Auto-update the application status to 'interviewing'
     supabase.table("applications").update({"status": "interviewing"}).eq("id", data.application_id).execute()
+    
+    # Fetch details for emails
+    new_interview = supabase.table("interviews").select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), hr_users!interviewer_id(name, email)").eq("id", result.data[0]["id"]).execute()
+    
+    if new_interview.data:
+        inv_data = new_interview.data[0]
+        c_name = inv_data["applications"]["candidates"]["name"]
+        c_email = inv_data["applications"]["candidates"]["email"]
+        r_title = inv_data["applications"]["roles"]["title"]
+        i_name = inv_data["hr_users"]["name"] if inv_data.get("hr_users") else "Our Team"
+        i_email = inv_data["hr_users"]["email"] if inv_data.get("hr_users") else ""
+        s_time_dt = dt.datetime.fromisoformat(inv_data["scheduled_at"].replace("Z", "+00:00"))
+        s_time_str = s_time_dt.strftime("%A, %B %d, %Y at %I:%M %p UTC")
+        m_link = inv_data.get("meeting_link", "")
+        
+        email_service = EmailService()
+        
+        # Send initial emails
+        await email_service.send_interview_to_candidate(c_email, c_name, r_title, i_name, s_time_str, m_link)
+        if i_email:
+            await email_service.send_interview_to_interviewer(i_email, i_name, c_name, r_title, s_time_str, m_link)
+            
+        # Schedule reminders 15 mins before
+        reminder_time = s_time_dt - dt.timedelta(minutes=15)
+        now = dt.datetime.now(timezone.utc)
+        
+        if reminder_time > now:
+            scheduler.add_job(
+                email_service.send_interview_reminder,
+                'date',
+                run_date=reminder_time,
+                args=[c_email, c_name, r_title, s_time_str, m_link, True]
+            )
+            if i_email:
+                scheduler.add_job(
+                    email_service.send_interview_reminder,
+                    'date',
+                    run_date=reminder_time,
+                    args=[i_email, i_name, r_title, s_time_str, m_link, False]
+                )
     
     return result.data[0]
 

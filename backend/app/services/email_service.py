@@ -17,17 +17,30 @@ class EmailService:
     """Send emails using EmailJS REST API."""
 
     def __init__(self):
+        # Account 1
         self.service_id = settings.EMAILJS_SERVICE_ID
         self.template_id = settings.EMAILJS_TEMPLATE_ID
         self.template_id_submitted = settings.EMAILJS_TEMPLATE_ID_SUBMITTED
         self.template_id_status = settings.EMAILJS_TEMPLATE_ID_STATUS
         self.public_key = settings.EMAILJS_PUBLIC_KEY
         self.private_key = settings.EMAILJS_PRIVATE_KEY
+        
+        # Account 2 (Interviews)
+        self.service_id_2 = settings.EMAILJS2_SERVICE_ID
+        self.template_id_interview_candidate = settings.EMAILJS2_TEMPLATE_ID_INTERVIEW_CANDIDATE
+        self.template_id_interview_interviewer = settings.EMAILJS2_TEMPLATE_ID_INTERVIEW_INTERVIEWER
+        self.public_key_2 = settings.EMAILJS2_PUBLIC_KEY
+        self.private_key_2 = settings.EMAILJS2_PRIVATE_KEY
+        
         self.api_url = "https://api.emailjs.com/api/v1.0/email/send"
 
-    async def _send_email(self, template_params: dict, override_template_id: str | None = None) -> bool:
+    async def _send_email(self, template_params: dict, override_template_id: str | None = None, use_account_2: bool = False) -> bool:
         """Internal helper to call EmailJS API."""
-        if not self.service_id or not self.public_key:
+        svc_id = self.service_id_2 if use_account_2 else self.service_id
+        pub_key = self.public_key_2 if use_account_2 else self.public_key
+        priv_key = self.private_key_2 if use_account_2 else self.private_key
+        
+        if not svc_id or not pub_key:
             logger.warning("emailjs_config_missing", msg="Emails will not be sent.")
             return False
             
@@ -37,10 +50,10 @@ class EmailService:
             return False
 
         payload = {
-            "service_id": self.service_id,
+            "service_id": svc_id,
             "template_id": target_template_id,
-            "user_id": self.public_key,
-            "accessToken": self.private_key,
+            "user_id": pub_key,
+            "accessToken": priv_key,
             "template_params": template_params,
         }
 
@@ -89,11 +102,42 @@ class EmailService:
         }
         return await self._send_email(params, override_template_id=self.template_id_status)
 
-    async def send_interview_schedule(self, to_email: str, details: dict) -> bool:
-        """Send interview scheduling details."""
+    async def send_interview_to_candidate(self, to_email: str, candidate_name: str, role_title: str, interviewer_name: str, scheduled_time: str, meeting_link: str) -> bool:
+        """Notify candidate of their scheduled interview."""
         params = {
             "to_email": to_email,
-            "type": "interview",
-            **details,
+            "to_name": candidate_name,
+            "role_title": role_title,
+            "interviewer_name": interviewer_name,
+            "scheduled_time": scheduled_time,
+            "meeting_link": meeting_link,
+            "reminder_text": "This is a confirmation of your scheduled interview."
         }
-        return await self._send_email(params)
+        return await self._send_email(params, override_template_id=self.template_id_interview_candidate, use_account_2=True)
+
+    async def send_interview_to_interviewer(self, to_email: str, interviewer_name: str, candidate_name: str, role_title: str, scheduled_time: str, meeting_link: str) -> bool:
+        """Notify interviewer of their scheduled interview."""
+        params = {
+            "to_email": to_email,
+            "to_name": interviewer_name,
+            "candidate_name": candidate_name,
+            "role_title": role_title,
+            "scheduled_time": scheduled_time,
+            "meeting_link": meeting_link,
+            "reminder_text": "This is a new interview assigned to you."
+        }
+        return await self._send_email(params, override_template_id=self.template_id_interview_interviewer, use_account_2=True)
+
+    async def send_interview_reminder(self, to_email: str, to_name: str, role_title: str, scheduled_time: str, meeting_link: str, is_candidate: bool) -> bool:
+        """Send a 15-minute reminder."""
+        params = {
+            "to_email": to_email,
+            "to_name": to_name,
+            "role_title": role_title,
+            "scheduled_time": scheduled_time,
+            "meeting_link": meeting_link,
+            "reminder_text": "REMINDER: Your interview starts in 15 minutes!"
+        }
+        # Use the appropriate template
+        template_id = self.template_id_interview_candidate if is_candidate else self.template_id_interview_interviewer
+        return await self._send_email(params, override_template_id=template_id, use_account_2=True)

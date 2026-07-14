@@ -42,13 +42,20 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
 
-    # ── EmailJS ───────────────────────────────────────────────
+    # ── EmailJS (Account 1 - Submissions/Status) ─────────────
     EMAILJS_SERVICE_ID: str = ""
     EMAILJS_TEMPLATE_ID: str = ""
     EMAILJS_TEMPLATE_ID_SUBMITTED: str = ""
     EMAILJS_TEMPLATE_ID_STATUS: str = ""
     EMAILJS_PUBLIC_KEY: str = ""
     EMAILJS_PRIVATE_KEY: str = ""
+
+    # ── EmailJS (Account 2 - Interviews) ─────────────────────
+    EMAILJS2_SERVICE_ID: str = ""
+    EMAILJS2_TEMPLATE_ID_INTERVIEW_CANDIDATE: str = ""
+    EMAILJS2_TEMPLATE_ID_INTERVIEW_INTERVIEWER: str = ""
+    EMAILJS2_PUBLIC_KEY: str = ""
+    EMAILJS2_PRIVATE_KEY: str = ""
 
     # ── JWT ───────────────────────────────────────────────────
     JWT_ALGORITHM: str = "HS256"
