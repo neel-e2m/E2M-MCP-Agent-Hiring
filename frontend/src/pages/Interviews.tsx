@@ -31,7 +31,7 @@ interface Interview {
     candidates?: { name: string; email: string };
     roles?: { title: string };
   };
-  hr_users?: { full_name: string };
+  hr_users?: { name: string };
 }
 
 // --- Components ---

@@ -83,7 +83,7 @@ export function Applications() {
   /* ── scheduling state ── */
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [interviewers, setInterviewers] = useState<any[]>([]);
-  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00' });
+  const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00', notes: '' });
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [generatedEmail, setGeneratedEmail] = useState<{subject: string, body: string} | null>(null);
 
