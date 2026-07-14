@@ -12,9 +12,9 @@ import api from '../lib/api';
 // --- Types ---
 interface Interviewer {
   id: string;
-  full_name: string;
+  name: string;
   email: string;
-  role: string;
+  department?: string;
 }
 
 interface Interview {
@@ -31,7 +31,7 @@ interface Interview {
     candidates?: { name: string; email: string };
     roles?: { title: string };
   };
-  hr_users?: { name: string };
+  interviewers?: { name: string };
 }
 
 // --- Components ---
@@ -78,7 +78,7 @@ export function Interviews() {
     setAddingInterviewer(true);
     try {
       await api.post('/interviewers/', {
-        full_name: newInterviewerName,
+        name: newInterviewerName,
         email: newInterviewerEmail
       });
       toast('Interviewer added successfully', 'success');
@@ -254,10 +254,10 @@ export function Interviews() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Users size={12} />
-                      </div>
-                      {inv.hr_users?.name || 'Our Team'}
+                      <p style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Users size={14} style={{ color: 'var(--text-muted)' }} />
+                        {inv.interviewers?.name || 'Our Team'}
+                      </p>
                     </div>
                     {inv.meeting_link && (
                       <a href={inv.meeting_link} target="_blank" rel="noreferrer" style={{ 
@@ -299,19 +299,21 @@ export function Interviews() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
+                    <TableHead>Department</TableHead>
                     <TableHead style={{ width: '80px' }}></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {interviewers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>No interviewers configured yet.</TableCell>
+                      <TableCell colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>No interviewers configured yet.</TableCell>
                     </TableRow>
                   ) : (
                     interviewers.map(iv => (
                       <TableRow key={iv.id}>
-                        <TableCell style={{ fontWeight: 500 }}>{iv.full_name}</TableCell>
+                        <TableCell style={{ fontWeight: 500 }}>{iv.name}</TableCell>
                         <TableCell style={{ color: 'var(--text-secondary)' }}><span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={12} /> {iv.email}</span></TableCell>
+                        <TableCell>{iv.department || '-'}</TableCell>
                         <TableCell>
                           <button onClick={() => handleDeleteInterviewer(iv.id)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '4px' }}>
                             <Trash2 size={16} />

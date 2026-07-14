@@ -34,7 +34,7 @@ async def list_interviews(
     """List scheduled interviews."""
     result = (
         supabase.table("interviews")
-        .select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), hr_users!interviewer_id(name)")
+        .select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), interviewers!interviewer_id(name)")
         .order("scheduled_at", desc=False)
         .execute()
     )
@@ -79,15 +79,15 @@ async def schedule_interview(
     supabase.table("applications").update({"status": "interviewing"}).eq("id", data.application_id).execute()
     
     # Fetch details for emails
-    new_interview = supabase.table("interviews").select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), hr_users!interviewer_id(name, email)").eq("id", result.data[0]["id"]).execute()
+    new_interview = supabase.table("interviews").select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), interviewers!interviewer_id(name, email)").eq("id", result.data[0]["id"]).execute()
     
     if new_interview.data:
         inv_data = new_interview.data[0]
         c_name = inv_data["applications"]["candidates"]["name"]
         c_email = inv_data["applications"]["candidates"]["email"]
         r_title = inv_data["applications"]["roles"]["title"]
-        i_name = inv_data["hr_users"]["name"] if inv_data.get("hr_users") else "Our Team"
-        i_email = inv_data["hr_users"]["email"] if inv_data.get("hr_users") else ""
+        i_name = inv_data["interviewers"]["name"] if inv_data.get("interviewers") else "Our Team"
+        i_email = inv_data["interviewers"]["email"] if inv_data.get("interviewers") else ""
         s_time_dt = dt.datetime.fromisoformat(inv_data["scheduled_at"].replace("Z", "+00:00"))
         s_time_str = s_time_dt.strftime("%A, %B %d, %Y at %I:%M %p UTC")
         m_link = inv_data.get("meeting_link", "")
@@ -129,7 +129,7 @@ async def get_email_template(
     """Generate an email template for the interview."""
     result = (
         supabase.table("interviews")
-        .select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), hr_users!interviewer_id(name)")
+        .select("*, applications(candidate_id, role_id, candidates(name, email), roles(title)), interviewers!interviewer_id(name)")
         .eq("id", interview_id)
         .execute()
     )
@@ -139,7 +139,7 @@ async def get_email_template(
     interview = result.data[0]
     candidate_name = interview["applications"]["candidates"]["name"]
     role_title = interview["applications"]["roles"]["title"]
-    interviewer_name = interview["hr_users"]["name"] if interview.get("hr_users") else "Our Team"
+    interviewer_name = interview["interviewers"]["name"] if interview.get("interviewers") else "Our Team"
     
     dt_obj = dt.datetime.fromisoformat(interview["scheduled_at"].replace("Z", "+00:00"))
     formatted_date = dt_obj.strftime("%A, %B %d, %Y at %I:%M %p UTC")

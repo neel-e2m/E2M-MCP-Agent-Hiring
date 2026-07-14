@@ -18,26 +18,23 @@ router = APIRouter(tags=["Interviewers"], dependencies=[Depends(get_current_user
 
 
 class InterviewerCreate(BaseModel):
-    full_name: str
+    name: str
     email: EmailStr
+    department: str | None = None
 
 
 @router.get("/")
 async def list_interviewers(
     supabase: Annotated[Client, Depends(get_supabase)],
 ) -> list[dict]:
-    """List all interviewers (all HR users can be interviewers)."""
+    """List all interviewers."""
     result = (
-        supabase.table("hr_users")
+        supabase.table("interviewers")
         .select("*")
         .order("created_at", desc=True)
         .execute()
     )
-    
-    users = result.data or []
-    for u in users:
-        u["full_name"] = u.get("name")
-    return users
+    return result.data or []
 
 
 @router.post("/", dependencies=[Depends(require_role("admin", "hr_manager"))])
@@ -45,35 +42,21 @@ async def create_interviewer(
     data: InterviewerCreate,
     supabase: Annotated[Client, Depends(get_supabase)],
 ) -> dict:
-    """Create a new interviewer profile (HR User)."""
+    """Create a new interviewer profile."""
     # Check if exists
-    existing = supabase.table("hr_users").select("id").eq("email", data.email).execute()
+    existing = supabase.table("interviewers").select("id").eq("email", data.email).execute()
     if existing.data:
-        raise ConflictError(detail="An HR user with this email already exists")
-
-    try:
-        auth_response = supabase.auth.admin.create_user({
-            "email": data.email,
-            "password": "TempPassword123!",
-            "email_confirm": True,
-            "user_metadata": {"name": data.full_name}
-        })
-        auth_user_id = auth_response.user.id
-    except Exception as e:
-        raise ConflictError(detail=f"Failed to create auth user: {str(e)}")
+        raise ConflictError(detail="An interviewer with this email already exists")
 
     new_id = str(uuid.uuid4())
-    result = supabase.table("hr_users").insert({
+    result = supabase.table("interviewers").insert({
         "id": new_id,
-        "auth_user_id": auth_user_id,
         "email": data.email,
-        "name": data.full_name,
-        "role": "recruiter"
+        "name": data.name,
+        "department": data.department
     }).execute()
     
-    user_data = result.data[0]
-    user_data["full_name"] = user_data.get("name")
-    return user_data
+    return result.data[0]
 
 
 @router.delete("/{interviewer_id}", dependencies=[Depends(require_role("admin", "hr_manager"))])
@@ -82,5 +65,5 @@ async def delete_interviewer(
     supabase: Annotated[Client, Depends(get_supabase)],
 ) -> dict:
     """Delete an interviewer profile."""
-    supabase.table("hr_users").delete().eq("id", interviewer_id).execute()
+    supabase.table("interviewers").delete().eq("id", interviewer_id).execute()
     return {"status": "deleted"}

@@ -85,7 +85,7 @@ export function Applications() {
   const [interviewers, setInterviewers] = useState<any[]>([]);
   const [scheduleForm, setScheduleForm] = useState({ interviewer_id: '', date: '', time: '10:00', notes: '' });
   const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [generatedEmail, setGeneratedEmail] = useState<{subject: string, body: string} | null>(null);
+  const [generatedEmail, setGeneratedEmail] = useState<boolean>(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -236,9 +236,7 @@ export function Applications() {
         notes: scheduleForm.notes
       });
       
-      // Get the email template
-      const emailRes = await api.get(`/interviews/${res.data.id}/email_template`);
-      setGeneratedEmail(emailRes.data);
+      setGeneratedEmail(true);
       
       toast('Interview scheduled successfully!', 'success');
     } catch (err: any) {
@@ -559,7 +557,7 @@ export function Applications() {
                         >
                           <option value="" style={optionStyle}>Select an Interviewer...</option>
                           {interviewers.map(iv => (
-                            <option key={iv.id} value={iv.id} style={optionStyle}>{iv.full_name}</option>
+                            <option key={iv.id} value={iv.id} style={optionStyle}>{iv.name}</option>
                           ))}
                         </select>
                       </div>
@@ -591,19 +589,8 @@ export function Applications() {
                     </>
                   ) : (
                     <div>
-                      <div style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '12px', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Sparkles size={16} /> Interview scheduled successfully!
-                      </div>
-                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '8px' }}>Email Template generated</h4>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px' }}>Copy and paste this to send to the candidate:</p>
-                      
-                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)', padding: '16px', fontSize: '0.875rem' }}>
-                        <div style={{ marginBottom: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px' }}>
-                          <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Subject:</span> {generatedEmail.subject}
-                        </div>
-                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                          {generatedEmail.body}
-                        </div>
+                      <div style={{ background: 'var(--success-bg)', color: 'var(--success)', padding: '16px', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Sparkles size={20} /> Interview scheduled and emails sent automatically!
                       </div>
 
                       <Button onClick={() => setIsScheduleOpen(false)} style={{ width: '100%', marginTop: '20px' }}>
