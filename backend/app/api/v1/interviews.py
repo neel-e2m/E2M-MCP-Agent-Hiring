@@ -62,10 +62,6 @@ async def schedule_interview(
     if dt_obj.weekday() > 4:
         raise ValidationError(detail="Interviews can only be scheduled Monday through Friday")
         
-    # Check hours (10 AM to 6 PM) local time of the dt_obj
-    if dt_obj.hour < 10 or dt_obj.hour >= 18:
-        raise ValidationError(detail="Interviews can only be scheduled between 10:00 AM and 6:00 PM")
-
     new_start = dt_obj
     new_end = new_start + dt.timedelta(minutes=data.duration)
 

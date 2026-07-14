@@ -225,8 +225,9 @@ export function Applications() {
     
     setScheduleLoading(true);
     try {
-      // Create ISO string
-      const dtStr = `${scheduleForm.date}T${scheduleForm.time}:00Z`;
+      // Create ISO string using local timezone
+      const localDate = new Date(`${scheduleForm.date}T${scheduleForm.time}:00`);
+      const dtStr = localDate.toISOString();
       
       await api.post('/interviews/', {
         application_id: selectedAppId,
@@ -568,8 +569,30 @@ export function Applications() {
                           <input type="date" style={selectStyle} value={scheduleForm.date} onChange={e => setScheduleForm({...scheduleForm, date: e.target.value})} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Time (10am-6pm)</label>
-                          <input type="time" style={selectStyle} value={scheduleForm.time} onChange={e => setScheduleForm({...scheduleForm, time: e.target.value})} />
+                          <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Time</label>
+                          <select
+                            style={selectStyle}
+                            value={scheduleForm.time}
+                            onChange={e => setScheduleForm({...scheduleForm, time: e.target.value})}
+                          >
+                            <option value="10:00" style={optionStyle}>10:00 AM</option>
+                            <option value="10:30" style={optionStyle}>10:30 AM</option>
+                            <option value="11:00" style={optionStyle}>11:00 AM</option>
+                            <option value="11:30" style={optionStyle}>11:30 AM</option>
+                            <option value="12:00" style={optionStyle}>12:00 PM</option>
+                            <option value="12:30" style={optionStyle}>12:30 PM</option>
+                            <option value="13:00" style={optionStyle}>01:00 PM</option>
+                            <option value="13:30" style={optionStyle}>01:30 PM</option>
+                            <option value="14:00" style={optionStyle}>02:00 PM</option>
+                            <option value="14:30" style={optionStyle}>02:30 PM</option>
+                            <option value="15:00" style={optionStyle}>03:00 PM</option>
+                            <option value="15:30" style={optionStyle}>03:30 PM</option>
+                            <option value="16:00" style={optionStyle}>04:00 PM</option>
+                            <option value="16:30" style={optionStyle}>04:30 PM</option>
+                            <option value="17:00" style={optionStyle}>05:00 PM</option>
+                            <option value="17:30" style={optionStyle}>05:30 PM</option>
+                            <option value="18:00" style={optionStyle}>06:00 PM</option>
+                          </select>
                         </div>
                       </div>
 
