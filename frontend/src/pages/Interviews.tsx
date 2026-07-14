@@ -103,14 +103,24 @@ export function Interviews() {
     }
   };
 
+  useEffect(() => {
+    // Scroll selected date into center view when it changes
+    setTimeout(() => {
+      const el = document.getElementById('selected-date-card');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 50);
+  }, [selectedDate]);
+
   // --- Calendar Logic ---
   const generateDays = () => {
     const days = [];
-    // Start from 2 days ago, show next 12 days
+    // Generate symmetrically around selected date
     const start = new Date(selectedDate);
-    start.setDate(selectedDate.getDate() - 2);
+    start.setDate(selectedDate.getDate() - 14);
     
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 29; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       days.push(d);
@@ -169,7 +179,7 @@ export function Interviews() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', scrollbarWidth: 'none' }}>
             {daysToShow.map((date, idx) => {
               const isSelected = date.toDateString() === selectedDate.toDateString();
               const hasInterviews = interviews.some(i => new Date(i.scheduled_at).toDateString() === date.toDateString());
@@ -177,11 +187,13 @@ export function Interviews() {
 
               return (
                 <div 
+                  id={isSelected ? 'selected-date-card' : undefined}
                   key={idx}
                   onClick={() => setSelectedDate(date)}
                   style={{
-                    minWidth: '80px',
-                    padding: '12px',
+                    minWidth: '82.9px',
+                    flexShrink: 0,
+                    padding: '12PX',
                     borderRadius: 'var(--radius-md)',
                     border: isSelected ? '2px solid var(--accent-primary)' : '1px solid var(--glass-border)',
                     background: isSelected ? 'var(--accent-soft)' : (isWeekend ? 'transparent' : 'var(--bg-tertiary)'),
@@ -206,6 +218,7 @@ export function Interviews() {
                 </div>
               );
             })}
+            <div style={{ minWidth: '12px', flexShrink: 0 }}></div>
           </div>
         </CardContent>
       </Card>
