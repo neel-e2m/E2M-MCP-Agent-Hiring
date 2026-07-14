@@ -20,7 +20,6 @@ interface DashboardStats {
 }
 
 interface PipelineData {
-  submitted: number;
   under_review: number;
   shortlisted: number;
   interviewing: number;
@@ -67,7 +66,6 @@ const activityIconMap: Record<string, typeof Activity> = {
 };
 
 const pipelineLabels: Record<string, string> = {
-  submitted: 'Submitted',
   under_review: 'Under Review',
   shortlisted: 'Shortlisted',
   interviewing: 'Interviewing',

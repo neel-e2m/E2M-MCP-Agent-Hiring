@@ -62,7 +62,6 @@ class AnalyticsService:
         result = self.supabase.table("applications").select("status").execute()
         
         counts = {
-            "submitted": 0,
             "under_review": 0,
             "shortlisted": 0,
             "interviewing": 0,
