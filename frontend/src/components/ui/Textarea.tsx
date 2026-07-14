@@ -5,14 +5,15 @@ import { cn } from '../../lib/utils';
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
+  containerStyle?: React.CSSProperties;
 }
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, error, id, ...props }, ref) => {
+  ({ className, label, error, id, containerStyle, ...props }, ref) => {
     const textareaId = id || Math.random().toString(36).substr(2, 9);
 
     return (
-      <div className={styles.container}>
+      <div className={styles.container} style={containerStyle}>
         {label && (
           <label htmlFor={textareaId} className={styles.label}>
             {label}

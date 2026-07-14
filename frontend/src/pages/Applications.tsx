@@ -454,8 +454,8 @@ export function Applications() {
             <div style={{ borderTop: '1px solid var(--glass-border)' }} />
 
             {/* Profile Summary */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px' }}>
-              <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <h4 style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '12px' }}>
                   Candidate Summary
                 </h4>
@@ -469,10 +469,10 @@ export function Applications() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {appDetail.candidates?.skills?.length ? (
                     <>
-                      {appDetail.candidates.skills.slice(0, showAllSkills ? undefined : 8).map((skill: string, i: number) => (
+                      {appDetail.candidates.skills.slice(0, showAllSkills ? undefined : (appDetail.status === 'shortlisted' ? 14 : 8)).map((skill: string, i: number) => (
                         <Badge key={i} variant="info">{skill}</Badge>
                       ))}
-                      {appDetail.candidates.skills.length > 8 && (
+                      {appDetail.candidates.skills.length > (appDetail.status === 'shortlisted' ? 14 : 8) && (
                         <button 
                           onClick={() => setShowAllSkills(!showAllSkills)}
                           style={{ 
@@ -482,7 +482,7 @@ export function Applications() {
                             cursor: 'pointer', transition: 'background-color 0.2s'
                           }}
                         >
-                          {showAllSkills ? 'Show Less' : `+ ${appDetail.candidates.skills.length - 8} More`}
+                          {showAllSkills ? 'Show Less' : `+ ${appDetail.candidates.skills.length - (appDetail.status === 'shortlisted' ? 14 : 8)} More`}
                         </button>
                       )}
                     </>
@@ -500,7 +500,8 @@ export function Applications() {
                 padding: '20px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '16px'
+                gap: '16px',
+                height: '100%'
               }}>
                 <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                   <Briefcase size={16} /> Hiring Decision
@@ -527,7 +528,8 @@ export function Applications() {
                     placeholder="Private notes about this candidate..."
                     value={reviewForm.notes}
                     onChange={e => setReviewForm({ ...reviewForm, notes: e.target.value })}
-                    style={{ flex: 1, minHeight: '130px', resize: 'none' }}
+                    containerStyle={{ flex: 1 }}
+                    style={{ flex: 1, minHeight: '100px', resize: 'none' }}
                   />
                 </div>
 
@@ -536,7 +538,7 @@ export function Applications() {
                 </Button>
 
                 {appDetail.status === 'shortlisted' && (
-                  <Button variant="outline" onClick={() => setIsScheduleOpen(true)} style={{ width: '100%', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                  <Button variant="outline" onClick={() => setIsScheduleOpen(true)} style={{ width: '100%', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
                     <Calendar size={16} /> Schedule Interview
                   </Button>
                 )}
