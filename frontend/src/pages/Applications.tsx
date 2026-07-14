@@ -145,7 +145,7 @@ export function Applications() {
     setCandidateFiles([]);
     setShowAllSkills(false);
     setIsScheduleOpen(false);
-    setGeneratedEmail(null);
+    setGeneratedEmail(false);
     setDetailLoading(true);
     try {
       const res = await api.get(`/applications/${appId}`);
@@ -183,7 +183,7 @@ export function Applications() {
     setAppDetail(null);
     setPromptAnswer(null);
     setIsScheduleOpen(false);
-    setGeneratedEmail(null);
+    setGeneratedEmail(false);
   };
 
   /* ── actions ── */
@@ -229,7 +229,7 @@ export function Applications() {
       // Create ISO string
       const dtStr = `${scheduleForm.date}T${scheduleForm.time}:00Z`;
       
-      const res = await api.post('/interviews/', {
+      await api.post('/interviews/', {
         application_id: selectedAppId,
         interviewer_id: scheduleForm.interviewer_id,
         scheduled_at: dtStr,
