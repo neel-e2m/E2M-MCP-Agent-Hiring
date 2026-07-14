@@ -115,8 +115,9 @@ async def schedule_interview(
         r_title = inv_data["applications"]["roles"]["title"]
         i_name = inv_data["interviewers"]["name"] if inv_data.get("interviewers") else "Our Team"
         i_email = inv_data["interviewers"]["email"] if inv_data.get("interviewers") else ""
-        s_time_dt = dt.datetime.fromisoformat(inv_data["scheduled_at"].replace("Z", "+00:00"))
-        s_time_str = s_time_dt.strftime("%A, %B %d, %Y at %I:%M %p UTC")
+        ist_offset = dt.timezone(dt.timedelta(hours=5, minutes=30))
+        s_time_dt = dt.datetime.fromisoformat(inv_data["scheduled_at"].replace("Z", "+00:00")).astimezone(ist_offset)
+        s_time_str = s_time_dt.strftime("%A, %B %d, %Y at %I:%M %p IST")
         m_link = inv_data.get("meeting_link", "")
         
         email_service = EmailService()
