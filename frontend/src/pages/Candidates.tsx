@@ -579,14 +579,54 @@ function ActivityTab({ candidateId }: { candidateId: string }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {sorted.map(entry => {
           const ts = entry.timestamp || entry.created_at;
-          const actionLabel = entry.action || entry.type || (entry as any).tool_name || 'System Event';
+          const rawToolName = entry.action || entry.type || (entry as any).tool_name || 'System Event';
+          const actionLabel = rawToolName.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          
           let detailText = entry.details || entry.message || '';
           
           if (!detailText && (entry as any).request_payload) {
-            try {
-              detailText = JSON.stringify((entry as any).request_payload).substring(0, 100) + '...';
-            } catch {
-              detailText = 'Payload provided';
+            const req = (entry as any).request_payload;
+            const res = (entry as any).response_payload || {};
+            
+            switch (rawToolName) {
+              case 'register_candidate':
+                detailText = `Registered candidate ${req.name || ''} (${req.email || ''}).`;
+                break;
+              case 'update_profile':
+                detailText = `Updated profile with ${req.skills?.length || 0} skills, ${req.experience?.length || 0} experience entries.`;
+                break;
+              case 'submit_resume_from_url':
+                detailText = `Uploaded resume from URL: ${req.url}`;
+                break;
+              case 'check_eligibility':
+                detailText = `Eligibility check completed. ${res.passed ? 'Passed!' : 'Failed.'}`;
+                if (res.reason) detailText += ` Reason: ${res.reason}`;
+                break;
+              case 'start_screening':
+                detailText = `Started technical screening. Total questions: ${res.total_questions || 0}.`;
+                break;
+              case 'get_next_question':
+                detailText = `Fetched next question.`;
+                break;
+              case 'submit_answer':
+                detailText = `Answer submitted. Score: ${res.score || 0}/10.`;
+                if (res.ai_flag) detailText += ` (AI Flagged)`;
+                break;
+              case 'submit_application':
+                detailText = `Application submitted. Status: ${res.status || 'unknown'}.`;
+                break;
+              case 'suspicious_activity':
+                detailText = `⚠️ SUSPICIOUS ACTIVITY: ${req.reason || 'Flagged'}.`;
+                break;
+              default:
+                try {
+                  detailText = JSON.stringify(req).substring(0, 100) + '...';
+                } catch {
+                  detailText = 'Payload provided';
+                }
+            }
+            if ((entry as any).duration_ms) {
+              detailText += ` [${(entry as any).duration_ms}ms]`;
             }
           }
 

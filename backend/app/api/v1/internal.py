@@ -10,11 +10,28 @@ from app.services.application_service import ApplicationService
 from app.services.eligibility_service import EligibilityService
 from app.services.resume_service import ResumeService
 from app.services.llm_service import LLMService
+from app.services.audit_service import AuditService
 from app.core.logging_config import get_logger
+import time
 
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["Internal MCP Routes"])
+
+async def _log_tool(supabase, candidate_id: str | None, tool_name: str, req_payload: dict, resp_payload: dict, start_time: float):
+    duration = int((time.time() - start_time) * 1000)
+    try:
+        await AuditService(supabase).log_tool_call(
+            candidate_id=candidate_id,
+            tool_name=tool_name,
+            request_payload=req_payload,
+            response_payload=resp_payload,
+            status="success",
+            duration_ms=duration
+        )
+    except Exception as e:
+        logger.error(f"Failed to log tool: {e}")
+
 
 class VerifyTokenRequest(BaseModel):
     token: str
@@ -95,6 +112,7 @@ async def verify_token(req: VerifyTokenRequest, supabase=Depends(get_supabase)):
 
 @router.post("/candidates/register")
 async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     token_service = TokenService(supabase)
     token_data = await token_service.validate_token(req.token)
     if not token_data:
@@ -148,7 +166,7 @@ async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get
         await token_service.consume_use(token_data["id"])
 
     sc = role.get("screening_config") or {}
-    return {
+    resp = {
         "candidate_id": candidate["id"],
         "role_id": token_data["role_id"],
         "role": {
@@ -159,6 +177,8 @@ async def register_candidate(req: RegisterCandidateRequest, supabase=Depends(get
             "has_prompt_question": bool(sc.get("prompt_question")),
         },
     }
+    await _log_tool(supabase, candidate["id"], "register_candidate", req.model_dump(), resp, start_time)
+    return resp
 
 
 @router.get("/roles/{role_id}")
@@ -189,6 +209,7 @@ async def internal_get_role(role_id: str, supabase=Depends(get_supabase)):
 
 @router.put("/candidates/{candidate_id}/profile")
 async def update_profile(candidate_id: str, req: UpdateProfileRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     candidate_service = CandidateService(supabase)
     # Filter out None values
     fields = {k: v for k, v in req.dict().items() if v is not None}
@@ -199,7 +220,14 @@ async def update_profile(candidate_id: str, req: UpdateProfileRequest, supabase=
     if is_complete:
         await candidate_service.update_status(candidate_id, "complete")
         
-    return {"status": "success"}
+    resp = {"status": "success"}
+    await _log_tool(supabase, candidate_id, "update_profile", req.model_dump(), resp, start_time)
+    
+    logs_check = supabase.table("tool_logs").select("id").eq("candidate_id", candidate_id).eq("tool_name", "update_profile").execute()
+    if logs_check.data and len(logs_check.data) > 2:
+        await _log_tool(supabase, candidate_id, "suspicious_activity", {"reason": "Candidate updated profile multiple times", "count": len(logs_check.data)}, {"flagged": True}, start_time)
+        
+    return resp
 
 @router.post("/candidates/{candidate_id}/resume")
 async def submit_resume(candidate_id: str, req: ResumeUploadRequest, supabase=Depends(get_supabase)):
@@ -215,49 +243,68 @@ async def submit_resume(candidate_id: str, req: ResumeUploadRequest, supabase=De
 @router.post("/candidates/{candidate_id}/resume-url")
 async def submit_resume_url(candidate_id: str, req: ResumeUrlUploadRequest, supabase=Depends(get_supabase)):
     """Download and store a candidate's resume PDF from a public URL."""
+    start_time = time.time()
     resume_service = ResumeService(supabase)
     record = await resume_service.upload_url(candidate_id, req.url)
-    return {
+    resp = {
         "status": "success",
         "file_id": record["id"],
         "file_name": record["file_name"],
     }
+    await _log_tool(supabase, candidate_id, "submit_resume_from_url", req.model_dump(), resp, start_time)
+    return resp
 
 @router.post("/eligibility/check")
 async def check_eligibility(req: EligibilityCheckRequest, supabase=Depends(get_supabase)):
     """Evaluate a candidate against the role's HR-defined eligibility rules."""
+    start_time = time.time()
     resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
     if not resume_check.data:
         raise HTTPException(status_code=400, detail="State Error: You must upload a resume before checking eligibility. Please tell the candidate: 'Could you please provide a public link to your resume PDF first? I need it before I can check your eligibility.'")
         
     service = EligibilityService(supabase)
-    return await service.evaluate(req.candidate_id, req.role_id)
+    resp = await service.evaluate(req.candidate_id, req.role_id)
+    await _log_tool(supabase, req.candidate_id, "check_eligibility", req.model_dump(), resp, start_time)
+    return resp
 
 @router.post("/screening/start")
 async def start_screening(req: StartScreeningRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     resume_check = supabase.table("candidate_files").select("id").eq("candidate_id", req.candidate_id).eq("file_type", "resume").execute()
     if not resume_check.data:
         raise HTTPException(status_code=400, detail="State Error: You must upload a resume before starting the screening. Please tell the candidate: 'Please share a link to your resume PDF so we can proceed.'")
         
     screening_service = ScreeningService(supabase)
     session = await screening_service.start_session(req.candidate_id, req.role_id)
-    return {
+    resp = {
         "session_id": session["id"],
         "total_questions": session["total_questions"]
     }
+    await _log_tool(supabase, req.candidate_id, "start_screening", req.model_dump(), resp, start_time)
+    return resp
 
 @router.post("/screening/next-question")
 async def get_next_question(req: NextQuestionRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     screening_service = ScreeningService(supabase)
     question = await screening_service.get_next_question(req.session_id)
+    
+    session = supabase.table("screening_sessions").select("candidate_id").eq("id", req.session_id).single().execute()
+    candidate_id = session.data["candidate_id"] if session.data else None
+    
     if not question:
         # All questions answered, finish session
         await screening_service.finish_session(req.session_id)
-        return {"status": "completed"}
+        resp = {"status": "completed"}
+        await _log_tool(supabase, candidate_id, "get_next_question", req.model_dump(), resp, start_time)
+        return resp
+        
+    await _log_tool(supabase, candidate_id, "get_next_question", req.model_dump(), question, start_time)
     return question
 
 @router.post("/screening/submit-answer")
 async def submit_answer(req: SubmitAnswerRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     screening_service = ScreeningService(supabase)
     llm_service = LLMService()
     
@@ -299,15 +346,21 @@ async def submit_answer(req: SubmitAnswerRequest, supabase=Depends(get_supabase)
         metadata=metadata,
     )
 
-    return {
+    session = supabase.table("screening_sessions").select("candidate_id").eq("id", req.session_id).single().execute()
+    candidate_id = session.data["candidate_id"] if session.data else None
+
+    resp = {
         "status": "success",
         "score": eval_result.get("score"),
         "feedback": eval_result.get("feedback"),
         "ai_flag": metadata.get("ai_flag", False),
     }
+    await _log_tool(supabase, candidate_id, "submit_answer", req.model_dump(), resp, start_time)
+    return resp
 
 @router.post("/applications/submit")
 async def submit_application(req: SubmitApplicationRequest, supabase=Depends(get_supabase)):
+    start_time = time.time()
     app_service = ApplicationService(supabase)
     # A real resume is now required (uploaded via submit_resume) — no dummy fallback.
     app = await app_service.submit(req.candidate_id, req.role_id)
@@ -326,14 +379,22 @@ async def submit_application(req: SubmitApplicationRequest, supabase=Depends(get
     except Exception as e:
         logger.error(f"Failed to send submission email: {e}")
 
-    return {
+    resp = {
         "application_id": app["id"],
         "status": app["status"],
     }
+    await _log_tool(supabase, req.candidate_id, "submit_application", req.model_dump(), resp, start_time)
+    return resp
 
 @router.get("/applications/{candidate_id}/{role_id}/status")
 async def get_application_status(candidate_id: str, role_id: str, supabase=Depends(get_supabase)):
+    start_time = time.time()
     res = supabase.table("applications").select("status, overall_score").eq("candidate_id", candidate_id).eq("role_id", role_id).execute()
     if not res.data:
-        return {"status": "not_found"}
-    return res.data[0]
+        resp = {"status": "not_found"}
+        await _log_tool(supabase, candidate_id, "get_application_status", {"candidate_id": candidate_id, "role_id": role_id}, resp, start_time)
+        return resp
+        
+    resp = res.data[0]
+    await _log_tool(supabase, candidate_id, "get_application_status", {"candidate_id": candidate_id, "role_id": role_id}, resp, start_time)
+    return resp
