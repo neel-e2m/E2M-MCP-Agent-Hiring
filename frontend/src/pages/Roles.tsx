@@ -94,7 +94,7 @@ const difficultyBadgeVariant: Record<string, 'success' | 'warning' | 'danger'> =
 };
 
 /* Build the screening_config payload from the flat form */
-function buildScreeningConfig(f: RoleForm): any {
+function buildScreeningConfig(f: RoleForm, promptQuestion?: string | null): any {
   const rules: any = {};
   const exp = parseFloat(f.min_experience_years);
   if (!isNaN(exp) && exp > 0) rules.min_experience_years = exp;
@@ -110,7 +110,18 @@ function buildScreeningConfig(f: RoleForm): any {
       shortlist_threshold: parseFloat(f.shortlist_threshold) || 7,
     },
   };
+  // Always include the key when the caller manages prompt questions so the
+  // backend sync can create/update/clear without wiping unrelated questions.
+  if (promptQuestion !== undefined) {
+    config.prompt_question = promptQuestion?.trim() || '';
+  }
   return config;
+}
+
+function normalizeFaqs(faqs: { question: string; answer: string }[]) {
+  return faqs
+    .map(f => ({ question: f.question.trim(), answer: f.answer.trim() }))
+    .filter(f => f.question && f.answer);
 }
 
 /* Parse an existing role.screening_config back into the flat form */
@@ -211,14 +222,18 @@ export function Roles() {
     e.preventDefault();
     setSubmitLoading(true);
     try {
+      const promptFromCreate = createQuestions.find(q => q.category === 'prompt');
       const payload: any = {
         title: formData.title,
         description: formData.description || undefined,
         department: formData.department || undefined,
         location: formData.location || undefined,
         employment_type: formData.employment_type,
-        screening_config: buildScreeningConfig(formData),
-        faqs: formData.faqs,
+        screening_config: buildScreeningConfig(
+          formData,
+          promptFromCreate ? promptFromCreate.question : undefined,
+        ),
+        faqs: normalizeFaqs(formData.faqs),
       };
       if (formData.requirements.trim()) {
         payload.requirements = formData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean);
@@ -227,10 +242,15 @@ export function Roles() {
       const roleResp = await api.post('/roles/', payload);
       const newRole = roleResp.data;
 
-      // Create questions if any
+      // Persist screening questions (prompt category is also synced via screening_config;
+      // posting it again upserts the same row — safe, no duplicates).
       if (createQuestions.length > 0) {
         for (const q of createQuestions) {
-          await api.post(`/roles/${newRole.id}/questions`, q);
+          await api.post(`/roles/${newRole.id}/questions`, {
+            question: q.question,
+            category: q.category,
+            difficulty: q.difficulty,
+          });
         }
       }
 
@@ -238,6 +258,7 @@ export function Roles() {
       setShowForm(false);
       setFormData(EMPTY_FORM);
       setCreateQuestions([]);
+      setShowCreateCustomRule(false);
       await fetchRoles();
     } catch {
       toast('Failed to create role', 'error');
@@ -287,16 +308,27 @@ export function Roles() {
   /* ── edit role ── */
   const handleEdit = async () => {
     if (!manageRole) return;
+    if (questionsLoading) {
+      toast('Please wait for screening questions to finish loading', 'error');
+      return;
+    }
     setEditLoading(true);
     try {
+      // Derive prompt_question from the live questions list so Save never
+      // resurrects a prompt the user just deleted (manageRole can be stale).
+      // When questions haven't loaded yet we omit the key (handled above).
+      const promptFromQuestions = questions.find(q => q.category === 'prompt');
       const payload: any = {
         title: editData.title,
         description: editData.description || undefined,
         department: editData.department || undefined,
         location: editData.location || undefined,
         employment_type: editData.employment_type,
-        screening_config: buildScreeningConfig(editData),
-        faqs: editData.faqs,
+        screening_config: buildScreeningConfig(
+          editData,
+          promptFromQuestions ? promptFromQuestions.question : '',
+        ),
+        faqs: normalizeFaqs(editData.faqs),
       };
       if (editData.requirements.trim()) {
         payload.requirements = editData.requirements.split(',').map((r: string) => r.trim()).filter(Boolean);
@@ -305,6 +337,7 @@ export function Roles() {
       }
       const resp = await api.patch(`/roles/${manageRole.id}`, payload);
       setManageRole(resp.data);
+      setEditData(prev => ({ ...prev, faqs: normalizeFaqs(prev.faqs) }));
       toast('Role updated successfully', 'success');
       await fetchRoles();
       await fetchQuestions(manageRole.id);
@@ -856,20 +889,18 @@ export function Roles() {
                                 <Badge variant={difficultyBadgeVariant[q.difficulty] || 'default'}>{q.difficulty}</Badge>
                               </div>
                             </div>
-                            {q.category !== 'prompt' && (
-                              <button
-                                onClick={() => handleDeleteQuestion(q.id)}
-                                style={{
-                                  flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)',
-                                  cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', transition: 'color 0.2s',
-                                }}
-                                onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
-                                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-                                title="Delete question"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleDeleteQuestion(q.id)}
+                              style={{
+                                flexShrink: 0, background: 'none', border: 'none', color: 'var(--text-muted)',
+                                cursor: 'pointer', padding: '4px', borderRadius: 'var(--radius-md)', display: 'flex', transition: 'color 0.2s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.color = 'var(--danger)')}
+                              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                              title="Delete question"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         ))}
                       </div>

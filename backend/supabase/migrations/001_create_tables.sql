@@ -37,6 +37,7 @@ CREATE TABLE roles (
     description TEXT,
     requirements JSONB DEFAULT '[]'::jsonb,
     screening_config JSONB DEFAULT '{}'::jsonb,
+    faqs JSONB NOT NULL DEFAULT '[]'::jsonb,
     department TEXT,
     location TEXT,
     employment_type TEXT DEFAULT 'full_time',
